@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 #
-# image-resize.sh – script for upsize the image & for shrink free space on the image
+# image-resize – script for upsize the image & for shrink free space on the image
 # Copyright 2018 Artem B. Smirnov
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

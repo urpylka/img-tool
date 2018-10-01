@@ -1,5 +1,5 @@
 #
-# Dockerfile – os & toolchain for image-chroot.sh & image-resize.sh
+# Dockerfile – os & toolchain for image-chroot & image-resize
 # Copyright 2018 Artem B. Smirnov
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,9 @@ RUN apt-get update -qq > /dev/null
 RUN apt-get install -y --no-install-recommends -qq bc jq unzip wget parted apt-utils git ca-certificates gawk > /dev/null
 RUN apt-get clean
 
-COPY ./*.sh /builder/
-COPY ./qemu-arm-resin /builder/qemu-arm-resin
+COPY ./qemu-arm-resin /usr/share/
+COPY ./image-resize /usr/sbin/
+COPY ./image-chroot /usr/sbin/
 
-WORKDIR /builder
-CMD ./repo/builder/image-build.sh
+WORKDIR /mnt
+CMD /bin/bash

@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 #
-# image-chroot.sh – script for execute commands in file-image, copy files
+# image-chroot – script for execute commands in file-image, copy files
 # Copyright 2018 Artem B. Smirnov
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,7 +63,7 @@ execute() {
     echo_stamp "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
     echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
-    cp './qemu-arm-resin' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
+    cp '/usr/share/qemu-arm-resin' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
   else echo_stamp "qemu-arm-static is not need"
   fi
 
@@ -97,6 +97,7 @@ execute() {
   && echo_stamp "OK" "SUCCESS" \
   || (echo_stamp "Failed" "ERROR"; exit 1)
 
+  set +e
   if [[ $# > 1 ]]; then
     echo_stamp "Copy script to chroot fs"
 
@@ -120,6 +121,7 @@ execute() {
   fi
 
   umount_system ${MOUNT_POINT} ${DEV_IMAGE}
+  set -e
 }
 
 umount_system() {
