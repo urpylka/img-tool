@@ -124,19 +124,34 @@ execute() {
   set -e
 }
 
+# https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
+# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
+my_travis_retry() {
+  local result=0
+  local count=1
+  while [ $count -le 3 ]; do
+    [ $result -ne 0 ] && {
+      echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
+    }
+    # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
+    ! { "$@"; result=$?; }
+    [ $result -eq 0 ] && break
+    count=$(($count + 1))
+    sleep 1
+  done
+
+  [ $count -gt 3 ] && {
+    echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
+  }
+
+  return $result
+}
+
 umount_system() {
   # TEMPLATE: umount_system <MOUNT_POINT> <DEV_IMAGE>
 
   echo_stamp "Unmount chroot rootfs and boot partition: $1"
-  umount_ok=false
-  # Repeat 5 times
-  for i in {1..5}; do
-    umount -fR $1 \
-    && umount_ok=true && break \
-    || (echo_stamp "Failed #$i (try 5 times)" "ERROR"; sleep 2)
-  done
-  [[ "$umount_ok" == true ]] && echo_stamp "OK" "SUCCESS" \
-  || (echo_stamp "Umount loop-image was failed" "ERROR"; exit 1)
+  my_travis_retry umount -fR $1
   losetup -d $2
 }
 
