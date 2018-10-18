@@ -12,13 +12,13 @@ Image consist two scripts:
 * For work you need to mount directory from root system to docker-container: use `-v $(pwd):/mnt`
 * Also you can transfer variable to docker-container: use `-e NAME="VALUE"`
 
-### Execute in image
+### Execute in image or copy files to image
 
 ```bash
 docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]
 ```
 
-### Resize image
+### Resize image (minimize & maximize)
 
 ```bash
 docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3 img-resize <IMAGE> [ min <FREE_SPACE> | max <FREE_SPACE> ]
