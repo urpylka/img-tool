@@ -2,7 +2,9 @@
 
 Utilities for execute commands (amd64 &amp; armhf) &amp; resize the file-images. Due to docker scripts can work on Ubuntu, macOS & etc.
 
-## API v0.3
+Now it only works with **Raspbian OS images** due to filesystem partition scheme. Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc. Project used in [COEX CLEVER](https://github.com/copterexpress/clever).
+
+## API v0.4
 
 Image consist two scripts:
 
@@ -12,20 +14,42 @@ Image consist two scripts:
 * For work you need to mount directory from root system to docker-container: use `-v $(pwd):/mnt`
 * Also you can transfer variable to docker-container: use `-e NAME="VALUE"`
 
-### Execute in image
+### Execute in image or copy files to image
 
 ```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]
+docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.4 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILES> <MOVE_TO> ]
 ```
 
-### Resize image
+Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (and copying to target image until execution is finished). Leave `img-chroot <IMAGE>` without any argument for enter to `/bin/bash` on the target image.
+
+### Resize image (minimize & maximize)
 
 ```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3 img-resize <IMAGE> [ min <FREE_SPACE> | max <FREE_SPACE> ]
+docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.4 img-resize <IMAGE> [NEW_SIZE]
+```
+
+> If you leave `NEW_SIZE` parameter empty, program return posible minimum size. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
+
+## Other
+
+Install the shortcut on macOS:
+
+```bash
+echo "alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.4'" >> ~/.bash_profile
+```
+
+Use the shortcut:
+
+```bash
+img img-resize <IMAGE> [NEW_SIZE]
+```
+
+```bash
+img img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]
 ```
 
 ## License
 
-Copyright 2018 Artem B. Smirnov
+Copyright 2018-2020 Artem Smirnov, Alexey Rogachevskiy, Arthur Golubtsov
 
 Licensed under the Apache License, Version 2.0
