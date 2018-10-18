@@ -25,8 +25,8 @@ RUN apt-get install -y --no-install-recommends -qq bc jq unzip wget parted apt-u
 RUN apt-get clean
 
 COPY ./qemu-arm-resin /usr/share/
-COPY ./image-resize /usr/sbin/
-COPY ./image-chroot /usr/sbin/
+COPY ./img-resize /usr/sbin/
+COPY ./img-chroot /usr/sbin/
 
 WORKDIR /mnt
 CMD /bin/bash
