@@ -24,6 +24,14 @@ docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0
 docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3 img-resize <IMAGE> [ min <FREE_SPACE> | max <FREE_SPACE> ]
 ```
 
+## Other
+
+Shortcut for macOS:
+
+```bash
+echo "alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0.3'" >> ~/.bash_profile
+```
+
 ## License
 
 Copyright 2018 Artem B. Smirnov
