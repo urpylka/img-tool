@@ -151,9 +151,11 @@ copy_to_chroot() {
   mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
   local dir_name=$(dirname "${MOUNT_POINT}$3 /")
-
-  [[ ! -d ${dir_name} ]] && mkdir -p ${dir_name} \
-  && echo_stamp "Created ${dir_name}" "SUCCESS"
+  
+  if [[ -f $2 ]]; then
+    [[ ! -d ${dir_name} ]] && mkdir -p ${dir_name} \
+    && echo_stamp "Created ${dir_name}" "SUCCESS"
+  fi
 
   cp -r "$2" "${MOUNT_POINT}$3"
   umount_system ${MOUNT_POINT} ${DEV_IMAGE}
