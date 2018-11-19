@@ -192,7 +192,7 @@ echo "==========================================================================
 if [[ $# > 0 ]]; then
   [[ -f $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; echo "Template: image-chroot.sh <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]"; exit 1)
 
-  if [[ ! -z $2 && -f $3 ]]; then
+  if [[ ! -z $2 ]]; then
     case "$2" in
       exec)
         execute $1 $3 ${@:4};;
