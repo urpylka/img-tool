@@ -131,7 +131,7 @@ umount_system() {
   for i in {1..5}; do
     umount -fR $1 \
     && umount_ok=true && break \
-    || (echo_stamp "Failed #$i (try 5 times)" "ERROR"; sleep 2)
+    || (echo_stamp "Failed #$i (try 5 times)" "ERROR"; echo "$1 is still used by the following processes: "; lsof +D $1; sleep 2)
   done
   [[ "$umount_ok" == true ]] && echo_stamp "OK" "SUCCESS" \
   || (echo_stamp "Umount loop-image was failed" "ERROR"; exit 1)
