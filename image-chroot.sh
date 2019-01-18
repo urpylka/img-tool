@@ -71,19 +71,17 @@ execute() {
 
   echo_stamp "Mounting /proc in chroot... "
   if [ ! -d ${MOUNT_POINT}/proc ]; then
-    mkdir -p ${MOUNT_POINT}/proc \
-    && mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
-    && echo_stamp "OK" "SUCCESS" \
-    || (echo_stamp "Failed" "ERROR"; exit 1)
-  else echo_stamp "/proc already exist" "SUCCESS"; fi
+    mkdir -p ${MOUNT_POINT}/proc; fi
+  mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
 
   echo_stamp "Mounting /sys in chroot... "
   if [ ! -d ${MOUNT_POINT}/sys ]; then
-    mkdir -p ${MOUNT_POINT}/sys \
-    &&   mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
-    && echo_stamp "OK" "SUCCESS" \
-    || (echo_stamp "Failed" "ERROR"; exit 1)
-  else echo_stamp "/sys already exist" "SUCCESS"; fi
+    mkdir -p ${MOUNT_POINT}/sys; fi
+  mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
 
   echo_stamp "Mounting /dev/ and /dev/pts in chroot... " \
   && mkdir -p -m 755 ${MOUNT_POINT}/dev/pts \
@@ -115,7 +113,7 @@ execute() {
     # https://losst.ru/vosstanovlenie-grub2
     # http://unixteam.ru/content/virtualizaciya-ili-zapuskaem-prilozhenie-v-chroot-okruzhenii-razmyshleniya
     # http://help.ubuntu.ru/wiki/%D0%B2%D0%BE%D1%81%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_grub
-    echo_stamp "Entering to chroot" \
+    echo_stamp "Entering chroot" \
     && chroot ${MOUNT_POINT} /bin/bash
   fi
 
