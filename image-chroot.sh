@@ -58,12 +58,13 @@ execute() {
   mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
   mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
-  REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:'
+  REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
   if [[ $(arch) != 'armv7l' ]]; then
     echo_stamp "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
     echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
-    cp './qemu-arm-resin' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
+    cp './qemu-wrapper' "${MOUNT_POINT}/usr/bin/qemu-wrapper"
+    cp './qemu-arm-static' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
   else echo_stamp "qemu-arm-static is not need"
   fi
 
