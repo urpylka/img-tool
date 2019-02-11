@@ -21,12 +21,14 @@ ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof
+RUN apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev
 RUN apt-get clean
 
-COPY ./qemu-arm-resin /usr/share/
-COPY ./img-resize /usr/sbin/
-COPY ./img-chroot /usr/sbin/
+COPY ./*.sh /builder/
+COPY ./qemu-arm-static /builder/qemu-arm-static
+COPY ./src /builder/src
+
+RUN gcc -static /builder/src/qemu-wrapper.c -O3 -s -o /builder/qemu-wrapper
 
 WORKDIR /mnt
 CMD /bin/bash
