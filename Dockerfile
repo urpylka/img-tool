@@ -21,7 +21,7 @@ ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev
+RUN apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev libcap2-bin
 RUN apt-get clean
 
 COPY ./*.sh /builder/
