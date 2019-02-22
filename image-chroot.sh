@@ -104,7 +104,7 @@ execute() {
 
     cp "$2" "${SCRIPT_DIR}/${SCRIPT_NAME}"
     # Run script in chroot with additional arguments
-    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} ${@:3}"
+    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} $3 $4 $5 $6 $7"
     # Removing script from chroot fs
     rm "${SCRIPT_DIR}/${SCRIPT_NAME}"
   else
