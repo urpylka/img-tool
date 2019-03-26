@@ -20,12 +20,15 @@ ENV DEBIAN_FRONTEND 'noninteractive'
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 
-RUN apt-get update -qq > /dev/null
-RUN apt-get install -y --no-install-recommends -qq bc jq unzip wget parted apt-utils git ca-certificates gawk > /dev/null
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev libcap2-bin
 RUN apt-get clean
 
 COPY ./*.sh /builder/
-COPY ./qemu-arm-resin /builder/qemu-arm-resin
+COPY ./qemu-arm-static /builder/qemu-arm-static
+COPY ./src /builder/src
+
+RUN gcc -static /builder/src/qemu-wrapper.c -O3 -s -o /builder/qemu-wrapper
 
 WORKDIR /builder
 CMD ./repo/builder/image-build.sh

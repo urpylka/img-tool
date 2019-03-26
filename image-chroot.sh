@@ -58,12 +58,13 @@ execute() {
   mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
   mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
-  REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:'
+  REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
   if [[ $(arch) != 'armv7l' ]]; then
     echo_stamp "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
     echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
-    cp './qemu-arm-resin' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
+    cp './qemu-wrapper' "${MOUNT_POINT}/usr/bin/qemu-wrapper"
+    cp './qemu-arm-static' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
   else echo_stamp "qemu-arm-static is not need"
   fi
 
@@ -71,19 +72,17 @@ execute() {
 
   echo_stamp "Mounting /proc in chroot... "
   if [ ! -d ${MOUNT_POINT}/proc ]; then
-    mkdir -p ${MOUNT_POINT}/proc \
-    && mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
-    && echo_stamp "OK" "SUCCESS" \
-    || (echo_stamp "Failed" "ERROR"; exit 1)
-  else echo_stamp "/proc already exist" "SUCCESS"; fi
+    mkdir -p ${MOUNT_POINT}/proc; fi
+  mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
 
   echo_stamp "Mounting /sys in chroot... "
   if [ ! -d ${MOUNT_POINT}/sys ]; then
-    mkdir -p ${MOUNT_POINT}/sys \
-    &&   mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
-    && echo_stamp "OK" "SUCCESS" \
-    || (echo_stamp "Failed" "ERROR"; exit 1)
-  else echo_stamp "/sys already exist" "SUCCESS"; fi
+    mkdir -p ${MOUNT_POINT}/sys; fi
+  mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
 
   echo_stamp "Mounting /dev/ and /dev/pts in chroot... " \
   && mkdir -p -m 755 ${MOUNT_POINT}/dev/pts \
@@ -105,7 +104,7 @@ execute() {
 
     cp "$2" "${SCRIPT_DIR}/${SCRIPT_NAME}"
     # Run script in chroot with additional arguments
-    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} ${@:3}"
+    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} $3 $4 $5 $6 $7"
     # Removing script from chroot fs
     rm "${SCRIPT_DIR}/${SCRIPT_NAME}"
   else
@@ -115,7 +114,7 @@ execute() {
     # https://losst.ru/vosstanovlenie-grub2
     # http://unixteam.ru/content/virtualizaciya-ili-zapuskaem-prilozhenie-v-chroot-okruzhenii-razmyshleniya
     # http://help.ubuntu.ru/wiki/%D0%B2%D0%BE%D1%81%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_grub
-    echo_stamp "Entering to chroot" \
+    echo_stamp "Entering chroot" \
     && chroot ${MOUNT_POINT} /bin/bash
   fi
 
@@ -131,7 +130,7 @@ umount_system() {
   for i in {1..5}; do
     umount -fR $1 \
     && umount_ok=true && break \
-    || (echo_stamp "Failed #$i (try 5 times)" "ERROR"; sleep 2)
+    || (echo_stamp "Failed #$i (try 5 times)" "ERROR"; echo "$1 is still used by the following processes: "; lsof +D $1; sleep 2)
   done
   [[ "$umount_ok" == true ]] && echo_stamp "OK" "SUCCESS" \
   || (echo_stamp "Umount loop-image was failed" "ERROR"; exit 1)
