@@ -2,7 +2,7 @@
 
 #
 # image-chroot – script for execute commands in file-image, copy files
-# Copyright 2018 Artem B. Smirnov
+# Copyright 2018-2020 Artem Smirnov @urpylka
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -154,8 +154,8 @@ umount_system() {
   losetup -d $2
 }
 
-copy_to_chroot() {
-  # copy_to_chroot <IMAGE_PATH> <MOVE_FILE> <MOVE_TO>
+copy_to_image() {
+  # copy_to_image <IMAGE_PATH> <MOVE_FILE> <MOVE_TO>
 
   echo_stamp "Mount loop-image: $1"
   local DEV_IMAGE=$(losetup -Pf $1 --show)
@@ -189,16 +189,16 @@ for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
 echo "================================================================================"
 
 if [[ $# > 0 ]]; then
-  [[ -f $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; echo "Template: image-chroot.sh <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]"; exit 1)
+  [[ -f $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; echo "Template: img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]"; exit 1)
 
   if [[ ! -z $2 ]]; then
     case "$2" in
       exec)
         execute $1 $3 ${@:4};;
       copy)
-        copy_to_chroot $1 $3 $4;;
+        copy_to_image $1 $3 $4;;
       *)
-        echo "Template: image-chroot.sh <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]";;
+        echo "Template: img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]";;
     esac
   else execute $1; fi
 fi

@@ -2,7 +2,7 @@
 
 #
 # image-resize – script for upsize the image & for shrink free space on the image
-# Copyright 2018 Artem B. Smirnov
+# Copyright 2018-2019 Artem Smirnov @urpylka
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ umount_system() {
 }
 
 fix_partuuid() {
-  
+
   local IMAGE_PATH=$1
   local OLD_DISKID=$2
 
@@ -86,7 +86,7 @@ fix_partuuid() {
   DISKID="$(fdisk -l "$ROOT_DEV" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
   sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
   sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
-  
+
   umount_system ${MOUNT_POINT} ${DEV_IMAGE}
 }
 

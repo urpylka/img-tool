@@ -1,4 +1,4 @@
-# os & toolchain for image-chroot.sh & image-resize.sh
+# The toolchain for copy, chroot & resize Raspberry Pi images
 
 # Copyright 2018-2019 Artem Smirnov @urpylka
 # Copyright 2019 Alexey Rogachevskiy @sfalexrog
