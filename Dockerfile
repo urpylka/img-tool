@@ -29,7 +29,10 @@ COPY ./*.sh /builder/
 COPY ./qemu-arm-static /builder/qemu-arm-static
 COPY ./src /builder/src
 
-RUN gcc -static /builder/src/qemu-wrapper.c -O3 -s -o /builder/qemu-wrapper
+COPY ./qemu-arm-static /usr/share/qemu-arm-static
+
+COPY ./src /tmp/src
+RUN gcc -static /tmp/src/qemu-wrapper.c -O3 -s -o /usr/share/qemu-wrapper && rm -rf /tmp/src
 
 WORKDIR /mnt
 CMD /bin/bash
