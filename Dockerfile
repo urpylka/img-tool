@@ -1,7 +1,8 @@
-#
-# Dockerfile – os & toolchain for image-chroot & image-resize
-# Copyright 2018 Artem B. Smirnov
-#
+# os & toolchain for image-chroot.sh & image-resize.sh
+
+# Copyright 2018-2019 Artem Smirnov @urpylka
+# Copyright 2019 Alexey Rogachevskiy @sfalexrog
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
