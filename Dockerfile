@@ -1,6 +1,6 @@
 # The toolchain for copy, chroot & resize Raspberry Pi images
 
-# Copyright 2018-2019 Artem Smirnov @urpylka
+# Copyright 2018-2020 Artem Smirnov @urpylka
 # Copyright 2019 Alexey Rogachevskiy @sfalexrog
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,14 +25,13 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev libcap2-bin udev \
   && apt-get clean
 
-COPY ./*.sh /builder/
-COPY ./qemu-arm-static /builder/qemu-arm-static
-COPY ./src /builder/src
-
 COPY ./qemu-arm-static /usr/share/qemu-arm-static
 
 COPY ./src /tmp/src
 RUN gcc -static /tmp/src/qemu-wrapper.c -O3 -s -o /usr/share/qemu-wrapper && rm -rf /tmp/src
+
+COPY ./img-resize /usr/sbin/
+COPY ./img-chroot /usr/sbin/
 
 WORKDIR /mnt
 CMD /bin/bash
