@@ -86,6 +86,11 @@ fix_partuuid() {
     sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
     sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
 
+    # Another method to change partuuid
+    #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
+    #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
+    #sed -i 's/.*  \/               ext4    defaults,noatime  0       1$/\/dev\/mmcblk0p2  \/               ext4    defaults,noatime  0       1/' /etc/fstab
+
     umount_system ${MOUNT_POINT} ${DEV_IMAGE}
 }
 
@@ -207,9 +212,4 @@ if [[ -n $NEW_IMG_SIZE ]]; then
     echo "================================================================================"
 
     fix_partuuid $IMG_PATH $CUR_DISKID
-    # TODO check if image needs to change PARTUUID
-    #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
-    #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
-    #sed -i 's/.*  \/               ext4    defaults,noatime  0       1$/\/dev\/mmcblk0p2  \/               ext4    defaults,noatime  0       1/' /etc/fstab
-
 fi
