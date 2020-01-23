@@ -53,6 +53,9 @@ execute() {
   local DEV_IMAGE=$(losetup -Pf $1 --show)
   sleep 0.5
 
+  # TODO: Check if it is Raspbian image w 2 partitions
+  #       or if it have one partition
+
   local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
   echo_stamp "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot"
   mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
