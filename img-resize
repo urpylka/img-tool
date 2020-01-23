@@ -2,7 +2,7 @@
 
 #
 # image-resize – script for manage free space in the OS-image
-# Copyright 2018-2019 Artem Smirnov @urpylka
+# Copyright 2018-2020 Artem Smirnov @urpylka
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,11 +76,12 @@ fix_partuuid() {
     local DEV_IMAGE=$(losetup -Pf $IMAGE_PATH --show)
     sleep 0.5
 
-    local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
+    local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
     echo_bold "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot"
     mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
     mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
+    # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
     DISKID="$(fdisk -l "$IMAGE_PATH" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
     sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
     sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
@@ -88,173 +89,127 @@ fix_partuuid() {
     umount_system ${MOUNT_POINT} ${DEV_IMAGE}
 }
 
-resize_fs() {
-  # TEMPLATE: resize_fs <IMAGE_PATH> <SIZE>
+IMG_PATH=$1
+NEW_IMG_SIZE=$2
 
-  set +e
+[ -f $IMG_PATH ] || (echo_bold "Enter the correct filepath!" "ERROR"; exit 1)
 
-  # https://ru.wikipedia.org/wiki/%D0%A0%D0%B0%D0%B7%D1%80%D0%B5%D0%B6%D1%91%D0%BD%D0%BD%D1%8B%D0%B9_%D1%84%D0%B0%D0%B9%D0%BB
+# TODO: Check OS and current software
+# For example check macOS
 
-  # https://raspberrypi.stackexchange.com/questions/13137/how-can-i-mount-a-raspberry-pi-linux-distro-image
-  # fdisk -l 2017-11-29-raspbian-stretch-lite.img
-  # https://www.stableit.ru/2011/05/losetup.html
-  # -f     : losetup сам выбрал loop (минуя занятые)
-  # -P     : losetup монтирует разделы в образе как отдельные подразделы,
-  #          например /dev/loop0p1 и /dev/loop0p2
-  # --show : печатает имя устройства, например /dev/loop4
+FDISK_INFO=$(fdisk -l "$IMG_PATH") #&& echo -e "$FDISK_INFO"
+# https://raspberrypi.stackexchange.com/questions/13137/how-can-i-mount-a-raspberry-pi-linux-distro-image
+# Or we can use: "parted -m $IMG_PATH unit B print free", but it have not DISKID
+# https://ru.wikipedia.org/wiki/Разрежённый_файл
 
-  # http://karelzak.blogspot.ru/2015/05/resize-by-sfdisk.html
-  # ", +" : expand partition for volume size
-  # -N 2  : select second partition for work
+CUR_DISKID=$(echo -e "$FDISK_INFO" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
 
-  # There is a risk that sfdisk will ask for a disk remount to update partition table
-  # TODO: Check sfdisk exit code
+LINUX_PART=$(echo -e "$FDISK_INFO" | tail -1 | grep Linux)
+[[ -z $LINUX_PART ]] && (echo_bold "Linux partition is not at the end!" "ERROR"; exit 1)
+LINUX_PART_START=$(($(echo $LINUX_PART | awk -F' ' '{ print $2 }') * 512))
+LINUX_PART_END=$(($(echo $LINUX_PART | awk -F' ' '{ print $3 }') * 512))
 
-  echo_bold "Truncate image" \
-  && truncate -s$2 $1 \
-  && echo_bold "Mount loop-image: $1" \
-  && local DEV_IMAGE=$(losetup -Pf $1 --show) \
-  && sleep 0.5 \
-  && echo ", +" | sfdisk -N 2 ${DEV_IMAGE} \
-  && sleep 0.5 \
-  && losetup -d ${DEV_IMAGE} \
-  && sleep 0.5 \
-  && local DEV_IMAGE=$(losetup -Pf $1 --show) \
-  && sleep 0.5 \
-  && echo_bold "Check & repair filesystem after expand partition" \
-  && e2fsck -fvy "${DEV_IMAGE}p2" \
-  && echo_bold "Expand filesystem" \
-  && resize2fs "${DEV_IMAGE}p2" \
-  && echo_bold "Umount loop-image" \
-  && losetup -d ${DEV_IMAGE}
+# Можно делать луп на 2ю партицию просто используя "${LOOPBACK}p2",
+# но тут проверочки и другие полезные данные
+LOOPBACK=`losetup -f --show -o "$LINUX_PART_START" "$IMG_PATH"`
+# https://www.stableit.ru/2011/05/losetup.html
+# -f     : losetup сам выбрал loop (минуя занятые)
+# -P     : losetup монтирует разделы в образе как отдельные подразделы,
+#          например /dev/loop0p1 и /dev/loop0p2
+# --show : печатает имя устройства, например /dev/loop4
+# ======================================================================
+# losetup can return smhtn like that ↓
+# losetup: os.img: Warning: file does not fit into a 512-byte sector; the end of the file will be ignored.
+# Change image size to 512B diveded size
+# https://stackoverflow.com/questions/26540693/how-do-i-read-write-a-block-device
 
-  set -e
-}
+# set +e
+e2fsck -fy -v $LOOPBACK &> /dev/null
+# set -e
 
-shrink_free_space() {
+LINUX_PART_MIN_SIZE=$(( $(resize2fs -P $LOOPBACK 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
+losetup -d "$LOOPBACK"
 
-  if [[ -z $1 ]]; then
+IMG_MIN_SIZE=$(($LINUX_PART_START + $LINUX_PART_MIN_SIZE + 512))
+CUR_IMG_SIZE=$(($LINUX_PART_END + 512))
+OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'`
+
+echo "IMG_MIN_SIZE: $IMG_MIN_SIZE"
+echo "CUR_IMG_SIZE: $CUR_IMG_SIZE"
+echo "OBJ_IMG_SIZE: $OBJ_IMG_SIZE"
+
+if [[ -n $NEW_IMG_SIZE ]]; then
+    # FIXED:
+    # losetup: os.img: Warning: file does not fit into a 512-byte sector; the end of the file will be ignored.
+    DIVREMAINDER=$((${NEW_IMG_SIZE} % 512))
+    if [[ $DIVREMAINDER -gt 0 ]]; then
+        echo_bold "The NEW_IMG_SIZE ($NEW_IMG_SIZE) does not fit in 512-byte sector (logic of losetup utility), autocorrect size." "BLUE"
+        NEW_IMG_SIZE=$(($NEW_IMG_SIZE + 512 - $DIVREMAINDER))
+    fi
+
+    LINUX_PART_NEW_SIZE=$(($NEW_IMG_SIZE - $LINUX_PART_START - 512))
+    echo "LINUX_PART_NEW_SIZE: $LINUX_PART_NEW_SIZE"
+    # Кажется можно и не делать дробные сектора для увеличения размера раздела,
+    # но ввиду нестабильности и постоянных статических ошибок,
+    # а также для унификации кода сделал перерасчет LINUX_PART_NEW_SIZE и NEW_IMG_SIZE
+    # с учетом 4096-байтового сектора в LINUX_PART
+    DIVREMAINDER2=$((${LINUX_PART_NEW_SIZE} % 4096))
+    if [[ $DIVREMAINDER2 -gt 0 ]]; then
+        echo_bold "The LINUX_PART_NEW_SIZE ($LINUX_PART_NEW_SIZE) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrect size. And NEW_IMG_SIZE ($NEW_IMG_SIZE) too." "BLUE"
+        LINUX_PART_NEW_SIZE=$(($LINUX_PART_NEW_SIZE + 4096 - $DIVREMAINDER2))
+        NEW_IMG_SIZE=$(($LINUX_PART_START + $LINUX_PART_NEW_SIZE + 512))
+    fi
+    LINUX_PART_NEW_END=$(($LINUX_PART_START + $LINUX_PART_NEW_SIZE))
+
+    echo "NEW_IMG_SIZE: $NEW_IMG_SIZE"
+    echo "LINUX_PART_NEW_SIZE: $LINUX_PART_NEW_SIZE"
+    echo "LINUX_PART_NEW_END: $LINUX_PART_NEW_END"
+
+    [[ $NEW_IMG_SIZE -lt $IMG_MIN_SIZE ]] && (echo_bold "The image size cannot be less then $IMG_MIN_SIZE" "ERROR"; exit 1)
+    [[ $NEW_IMG_SIZE -eq $CUR_IMG_SIZE ]] && (echo_bold "Nothing to do" "SUCCESS"; exit 1)
+
+    # exit 1
+    if [[ $NEW_IMG_SIZE -lt $CUR_IMG_SIZE ]]; then
+        echo "MIN"
+
+        LOOPBACK=$(losetup -Pf $IMG_PATH --show)
+        resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
+        # Можно добавить параметр "-p" для отслеживания того, что делает программа.
+        # Больше о параметрах здесь: http://man7.org/linux/man-pages/man8/resize2fs.8.html
+        # Последним параметром указывается размер раздела,
+        # если параметр не указан, то раздел увеличивается до последнего сектора устройства.
+
+        sleep 1
+        losetup -d $LOOPBACK
+
+        parted $IMG_PATH rm 2
+        parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
+
+        truncate -s $(($LINUX_PART_NEW_END + 512)) $IMG_PATH
+    else
+        echo "MAX"
+
+        truncate -s$NEW_IMG_SIZE $IMG_PATH
+
+        parted $IMG_PATH rm 2
+        parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
+
+        LOOPBACK=$(losetup -Pf $IMG_PATH --show)
+
+        resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
+        sleep 1
+        losetup -d $LOOPBACK
+    fi
+
+    # More information
     echo "================================================================================"
-    echo_bold "Automatic Image file resizer"
-    echo_bold "Description: This script shrink your image to 10MiB free space"
-    echo_bold "if you didn't set FREE_SPACE in MiB (see usage below)."
-    echo_bold "Authors: Artem Smirnov @urpylka, SirLagz"
-    echo
-    echo_bold "Usage: ./autosizer.sh <IMAGE_PATH> [<FREE_SPACE>]"
-    echo
-    echo_bold "Requirements: parted, losetup, e2fsck, resize2fs, bc, truncate"
+    parted -m $IMG_PATH unit B print free
     echo "================================================================================"
-    exit 1
-  fi
 
-  echo "================================================================================"
-  # Default add 10MiB free space to image, if $2 doesn't set
-  FREE_SPACE=${2:-10}
+    fix_partuuid $IMG_PATH $CUR_DISKID
+    # TODO check if image needs to change PARTUUID
+    #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
+    #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
+    #sed -i 's/.*  \/               ext4    defaults,noatime  0       1$/\/dev\/mmcblk0p2  \/               ext4    defaults,noatime  0       1/' /etc/fstab
 
-  IMAGE_PATH=$1
-  echo_bold "Path to image: $IMAGE_PATH"
-  echo "================================================================================"
-
-  if [[ ! -e $IMAGE_PATH ]]; then
-    echo_bold "Error: File doesn't exist"
-    echo
-    exit 1
-  fi
-
-  # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
-  ROOT_DEV=$IMAGE_PATH
-  OLD_DISKID=$(fdisk -l "$ROOT_DEV" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
-
-  echo "================================================================================"
-  part_info=`parted -m $IMAGE_PATH unit B print`
-  echo_bold "Partition information:\n$part_info"
-  echo "================================================================================"
-
-  part_start=`echo "$part_info" | grep ext4 | awk -F: '{ print substr($2,0,length($2)-1) }'`
-  echo_bold "Partition start: $part_start (bytes)"
-  echo "================================================================================"
-
-  loopback=`losetup -f --show -o $part_start $IMAGE_PATH`
-  echo_bold "Loopback device: $loopback"
-  echo "================================================================================"
-
-  set +e
-  e2fsck -fvy $loopback
-  set -e
-
-  echo "================================================================================"
-  min_size=`resize2fs -P $loopback | awk -F': ' '{ print $2 }'`
-  #min_size=`resize2fs -P $loopback 2> /dev/null | awk -F': ' '{ print $2 }'`
-  echo_bold "Minsize: $min_size (4KiB)"
-  echo "================================================================================"
-
-  FREE_SPACE=$(($FREE_SPACE*1024*1024/4096))
-
-  min_size=`echo "$min_size+$FREE_SPACE" | bc`
-  echo_bold "Minsize + $FREE_SPACE (4KiB): $min_size (4KiB)"
-  echo "================================================================================"
-
-  resize2fs -p $loopback $min_size
-  sleep 1
-  losetup -d $loopback
-
-  echo "================================================================================"
-  partnewsize=`echo "$min_size * 4096" | bc`
-  echo_bold "New size of part: $min_size (4KiB) = $partnewsize (bytes)"
-  echo "================================================================================"
-
-  newpartend=`echo "$part_start + $partnewsize" | bc`
-  echo_bold "New end of part (Part start + part new size):"
-  echo_bold "$part_start (bytes) + $partnewsize (bytes) = $newpartend (bytes)"
-  echo "================================================================================"
-
-  part1=`parted $IMAGE_PATH rm 2`
-  echo "================================================================================"
-  part2=`parted $IMAGE_PATH unit B mkpart primary $part_start $newpartend`
-
-  echo "================================================================================"
-  endresult=`parted -m $IMAGE_PATH unit B print free | tail -1 | awk -F: '{ print substr($2,0,length($2)-1) }'`
-  echo_bold "Size of result image: $endresult (bytes)"
-  echo "================================================================================"
-
-  truncate -s $endresult $IMAGE_PATH
-
-  echo "================================================================================"
-  part_info=`parted -m $IMAGE_PATH unit B print`
-  echo_bold "Partition information:\n$part_info"
-  echo "================================================================================"
-
-  fix_partuuid $IMAGE_PATH $OLD_DISKID
-  # TODO check if image needs to change PARTUUID
-  #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
-  #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
-  #sed -i 's/.*  \/               ext4    defaults,noatime  0       1$/\/dev\/mmcblk0p2  \/               ext4    defaults,noatime  0       1/' /etc/fstab
-}
-
-if [ $(whoami) != "root" ]; then
-  echo ""
-  echo "********************************************************************"
-  echo "******************** This should be run as root ********************"
-  echo "********************************************************************"
-  echo ""
-  exit 1
-fi
-
-if [[ $# > 0 ]]; then
-  echo "================================================================================"
-  for ((i=1; i<=$#; i++)); do echo "\$$i: ${!i}"; done
-  echo "================================================================================"
-
-  [[ -f $1 ]] || (echo_bold "$1 does not exist" "ERROR"; exit 1)
-
-  if [[ ! -z $2 ]]; then
-    case "$2" in
-      min)
-        shrink_free_space $1 $3;;
-      max)
-        resize_fs $1 $3;;
-      *)
-        echo "Template: image-resize.sh <IMAGE> [ min <FREE_SPACE> | max <FREE_SPACE> ]";;
-    esac
-  else shrink_free_space $1; fi
 fi
