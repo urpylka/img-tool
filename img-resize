@@ -19,75 +19,73 @@
 set -e # Exit immidiately on non-zero result
 
 echo_bold() {
-  # TEMPLATE: echo_bold <TEXT> <TYPE>
-  # TYPE: SUCCESS, ERROR, INFO
+    # TEMPLATE: echo_bold <TEXT> <TYPE>
+    # TYPE: SUCCESS, ERROR, INFO
 
-  # More info there https://www.shellhacks.com/ru/bash-colors/
+    # More info there https://www.shellhacks.com/ru/bash-colors/
 
-  TEXT="$1"
-  TEXT="\e[1m$TEXT\e[0m" # BOLD
+    TEXT="$1"
+    TEXT="\e[1m$TEXT\e[0m" # BOLD
 
-  case "$2" in
-    SUCCESS)
-    TEXT="\e[32m${TEXT}\e[0m";; # GREEN
-    ERROR)
-    TEXT="\e[31m${TEXT}\e[0m";; # RED
-    *)
-    TEXT="\e[34m${TEXT}\e[0m";; # BLUE
-  esac
-  echo -e ${TEXT}
+    case "$2" in
+        SUCCESS)
+        TEXT="\e[32m${TEXT}\e[0m";; # GREEN
+        ERROR)
+        TEXT="\e[31m${TEXT}\e[0m";; # RED
+        *)
+        TEXT="\e[34m${TEXT}\e[0m";; # BLUE
+    esac
+    echo -e ${TEXT}
 }
 
-# https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
-# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
 my_travis_retry() {
-  local result=0
-  local count=1
-  while [ $count -le 3 ]; do
-    [ $result -ne 0 ] && {
-      echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
-    }
-    # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
-    ! { "$@"; result=$?; }
-    [ $result -eq 0 ] && break
-    count=$(($count + 1))
-    sleep 1
-  done
+    # https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
+    # https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
 
-  [ $count -gt 3 ] && {
-    echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
-  }
+    local result=0
+    local count=1
 
-  return $result
+    while [ $count -le 3 ]; do
+        [ $result -ne 0 ] && {
+        echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
+        }
+        # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
+        ! { "$@"; result=$?; }
+        [ $result -eq 0 ] && break
+        count=$(($count + 1))
+        sleep 1
+    done
+
+    [ $count -gt 3 ] && echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
+    return $result
 }
 
 umount_system() {
-  # TEMPLATE: umount_system <MOUNT_POINT> <DEV_IMAGE>
+    # TEMPLATE: umount_system <MOUNT_POINT> <DEV_IMAGE>
 
-  echo_bold "Unmount chroot rootfs and boot partition: $1"
-  my_travis_retry umount -fR $1
-  losetup -d $2
+    echo_bold "Unmount chroot rootfs and boot partition: $1"
+    my_travis_retry umount -fR $1
+    losetup -d $2
 }
 
 fix_partuuid() {
+    local IMAGE_PATH=$1
+    local OLD_DISKID=$2
 
-  local IMAGE_PATH=$1
-  local OLD_DISKID=$2
+    echo_bold "Mount loop-image: $IMAGE_PATH"
+    local DEV_IMAGE=$(losetup -Pf $IMAGE_PATH --show)
+    sleep 0.5
 
-  echo_bold "Mount loop-image: $IMAGE_PATH"
-  local DEV_IMAGE=$(losetup -Pf $IMAGE_PATH --show)
-  sleep 0.5
+    local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
+    echo_bold "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot"
+    mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
+    mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
-  local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
-  echo_bold "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot"
-  mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
-  mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
+    DISKID="$(fdisk -l "$IMAGE_PATH" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
+    sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
+    sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
 
-  DISKID="$(fdisk -l "$ROOT_DEV" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
-  sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
-  sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
-
-  umount_system ${MOUNT_POINT} ${DEV_IMAGE}
+    umount_system ${MOUNT_POINT} ${DEV_IMAGE}
 }
 
 resize_fs() {
@@ -134,6 +132,7 @@ resize_fs() {
 }
 
 shrink_free_space() {
+
   if [[ -z $1 ]]; then
     echo "================================================================================"
     echo_bold "Automatic Image file resizer"
@@ -152,34 +151,30 @@ shrink_free_space() {
   # Default add 10MiB free space to image, if $2 doesn't set
   FREE_SPACE=${2:-10}
 
-  strImgFile=$1
-  echo_bold "Path to image: $strImgFile"
+  IMAGE_PATH=$1
+  echo_bold "Path to image: $IMAGE_PATH"
   echo "================================================================================"
 
-  if [[ ! -e $strImgFile ]]; then
+  if [[ ! -e $IMAGE_PATH ]]; then
     echo_bold "Error: File doesn't exist"
     echo
     exit 1
   fi
 
   # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
-  ROOT_DEV=$strImgFile
+  ROOT_DEV=$IMAGE_PATH
   OLD_DISKID=$(fdisk -l "$ROOT_DEV" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
 
   echo "================================================================================"
-  partinfo=`parted -m $strImgFile unit B print`
-  echo_bold "Partition information:\n$partinfo"
+  part_info=`parted -m $IMAGE_PATH unit B print`
+  echo_bold "Partition information:\n$part_info"
   echo "================================================================================"
 
-  partnumber=`echo "$partinfo" | grep ext4 | awk -F: '{ print $1 }'`
-  echo_bold "Partition number: $partnumber"
+  part_start=`echo "$part_info" | grep ext4 | awk -F: '{ print substr($2,0,length($2)-1) }'`
+  echo_bold "Partition start: $part_start (bytes)"
   echo "================================================================================"
 
-  partstart=`echo "$partinfo" | grep ext4 | awk -F: '{ print substr($2,0,length($2)-1) }'`
-  echo_bold "Partition start: $partstart (bytes)"
-  echo "================================================================================"
-
-  loopback=`losetup -f --show -o $partstart $strImgFile`
+  loopback=`losetup -f --show -o $part_start $IMAGE_PATH`
   echo_bold "Loopback device: $loopback"
   echo "================================================================================"
 
@@ -188,48 +183,48 @@ shrink_free_space() {
   set -e
 
   echo "================================================================================"
-  minsize=`resize2fs -P $loopback | awk -F': ' '{ print $2 }'`
-  #minsize=`resize2fs -P $loopback 2> /dev/null | awk -F': ' '{ print $2 }'`
-  echo_bold "Minsize: $minsize (4KiB)"
+  min_size=`resize2fs -P $loopback | awk -F': ' '{ print $2 }'`
+  #min_size=`resize2fs -P $loopback 2> /dev/null | awk -F': ' '{ print $2 }'`
+  echo_bold "Minsize: $min_size (4KiB)"
   echo "================================================================================"
 
   FREE_SPACE=$(($FREE_SPACE*1024*1024/4096))
 
-  minsize=`echo "$minsize+$FREE_SPACE" | bc`
-  echo_bold "Minsize + $FREE_SPACE (4KiB): $minsize (4KiB)"
+  min_size=`echo "$min_size+$FREE_SPACE" | bc`
+  echo_bold "Minsize + $FREE_SPACE (4KiB): $min_size (4KiB)"
   echo "================================================================================"
 
-  resize2fs -p $loopback $minsize
+  resize2fs -p $loopback $min_size
   sleep 1
   losetup -d $loopback
 
   echo "================================================================================"
-  partnewsize=`echo "$minsize * 4096" | bc`
-  echo_bold "New size of part: $minsize (4KiB) = $partnewsize (bytes)"
+  partnewsize=`echo "$min_size * 4096" | bc`
+  echo_bold "New size of part: $min_size (4KiB) = $partnewsize (bytes)"
   echo "================================================================================"
 
-  newpartend=`echo "$partstart + $partnewsize" | bc`
+  newpartend=`echo "$part_start + $partnewsize" | bc`
   echo_bold "New end of part (Part start + part new size):"
-  echo_bold "$partstart (bytes) + $partnewsize (bytes) = $newpartend (bytes)"
+  echo_bold "$part_start (bytes) + $partnewsize (bytes) = $newpartend (bytes)"
   echo "================================================================================"
 
-  part1=`parted $strImgFile rm 2`
+  part1=`parted $IMAGE_PATH rm 2`
   echo "================================================================================"
-  part2=`parted $strImgFile unit B mkpart primary $partstart $newpartend`
+  part2=`parted $IMAGE_PATH unit B mkpart primary $part_start $newpartend`
 
   echo "================================================================================"
-  endresult=`parted -m $strImgFile unit B print free | tail -1 | awk -F: '{ print substr($2,0,length($2)-1) }'`
+  endresult=`parted -m $IMAGE_PATH unit B print free | tail -1 | awk -F: '{ print substr($2,0,length($2)-1) }'`
   echo_bold "Size of result image: $endresult (bytes)"
   echo "================================================================================"
 
-  truncate -s $endresult $strImgFile
+  truncate -s $endresult $IMAGE_PATH
 
   echo "================================================================================"
-  partinfo=`parted -m $strImgFile unit B print`
-  echo_bold "Partition information:\n$partinfo"
+  part_info=`parted -m $IMAGE_PATH unit B print`
+  echo_bold "Partition information:\n$part_info"
   echo "================================================================================"
 
-  fix_partuuid $strImgFile $OLD_DISKID
+  fix_partuuid $IMAGE_PATH $OLD_DISKID
   # TODO check if image needs to change PARTUUID
   #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
   #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
