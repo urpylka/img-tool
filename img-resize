@@ -137,7 +137,7 @@ losetup -d "$LOOPBACK"
 
 IMG_MIN_SIZE=$(($LINUX_PART_START + $LINUX_PART_MIN_SIZE + 512))
 CUR_IMG_SIZE=$(($LINUX_PART_END + 512))
-OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'`
+OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'` # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
 
 echo "IMG_MIN_SIZE: $IMG_MIN_SIZE"
 echo "CUR_IMG_SIZE: $CUR_IMG_SIZE"
@@ -170,10 +170,11 @@ if [[ -n $NEW_IMG_SIZE ]]; then
     echo "LINUX_PART_NEW_SIZE: $LINUX_PART_NEW_SIZE"
     echo "LINUX_PART_NEW_END: $LINUX_PART_NEW_END"
 
+    # https://andreyex.ru/operacionnaya-sistema-linux/kak-sravnivat-chisla-v-bash
     [[ $NEW_IMG_SIZE -lt $IMG_MIN_SIZE ]] && (echo_bold "The image size cannot be less then $IMG_MIN_SIZE" "ERROR"; exit 1)
     [[ $NEW_IMG_SIZE -eq $CUR_IMG_SIZE ]] && (echo_bold "Nothing to do" "SUCCESS"; exit 1)
 
-    # exit 1
+    # https://blog.eaglenn.ru/izmenenie-razmera-razdela-ext2-ext3-ext4-bez-poteri-informatsii/
     if [[ $NEW_IMG_SIZE -lt $CUR_IMG_SIZE ]]; then
         echo "MIN"
 
@@ -190,6 +191,7 @@ if [[ -n $NEW_IMG_SIZE ]]; then
         parted $IMG_PATH rm 2
         parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
 
+        # https://linux.die.net/man/1/truncate
         truncate -s $(($LINUX_PART_NEW_END + 512)) $IMG_PATH
     else
         echo "MAX"
