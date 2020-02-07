@@ -30,6 +30,21 @@ docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0
 
 > If you leave `NEW_SIZE` parameter empty, program return posible minimum size. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
 
+### Requirements
+
+gawk=1:4.2.1+dfsg-1     GNU Awk 4.2.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.1.2)
+parted=3.2-25           parted (GNU parted) 3.2
+util-linux=2.33.1-0.1   losetup from util-linux 2.33.1
+
+## Build own version
+
+```bash
+docker build -t img-tool:local .
+
+# for ease of use
+alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool:local'
+```
+
 ## Other
 
 Install the shortcut on macOS:
