@@ -153,7 +153,7 @@ umount_system() {
   # TEMPLATE: umount_system <MOUNT_POINT> <DEV_IMAGE>
 
   echo_stamp "Unmount chroot rootfs and boot partition: $1"
-  my_travis_retry umount -fR $1
+  my_travis_retry umount -fl $1
   losetup -d $2
 }
 
