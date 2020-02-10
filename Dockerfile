@@ -27,13 +27,7 @@ RUN apt-get update \
     unzip wget \
     parted gawk lsof udev \
     apt-utils ca-certificates \
-    gcc libc-dev libcap2-bin \
     && apt-get clean
-
-COPY ./qemu-arm-static /usr/share/qemu-arm-static
-
-COPY ./src /tmp/src
-RUN gcc -static /tmp/src/qemu-wrapper.c -O3 -s -o /usr/share/qemu-wrapper && rm -rf /tmp/src
 
 COPY ./img-resize /usr/sbin/
 COPY ./img-chroot /usr/sbin/
