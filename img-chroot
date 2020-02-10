@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 #
-# image-chroot – script for execute commands in file-image, copy files
+# img-chroot – script for execute commands in file-image, copy files
 # Copyright 2018-2020 Artem Smirnov @urpylka
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
