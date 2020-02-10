@@ -50,7 +50,7 @@ execute() {
   # execute <IMAGE_PATH> [<EXECUTE_FILE> [...]]
 
   echo_stamp "Mount loop-image: $1"
-  local DEV_IMAGE=$(losetup -Pf $1 --show)
+  local DEV_IMAGE=$(losetup -f) && losetup -Pf $1
   sleep 0.5
 
   # TODO: Check if it is Raspbian image w 2 partitions
@@ -161,7 +161,7 @@ copy_to_image() {
   # copy_to_image <IMAGE_PATH> <MOVE_FILE> <MOVE_TO>
 
   echo_stamp "Mount loop-image: $1"
-  local DEV_IMAGE=$(losetup -Pf $1 --show)
+  local DEV_IMAGE=$(losetup -f) && losetup -Pf $1
   sleep 0.5
 
   local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)

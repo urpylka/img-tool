@@ -73,7 +73,7 @@ fix_partuuid() {
     local OLD_DISKID=$2
 
     echo_bold "Mount loop-image: $IMAGE_PATH"
-    local DEV_IMAGE=$(losetup -Pf $IMAGE_PATH --show)
+    local DEV_IMAGE=$(losetup -f) && losetup -Pf $IMAGE_PATH
     sleep 0.5
 
     local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
@@ -116,7 +116,7 @@ LINUX_PART_END=$(($(echo $LINUX_PART | awk -F' ' '{ print $3 }') * 512))
 
 # Можно делать луп на 2ю партицию просто используя "${LOOPBACK}p2",
 # но тут проверочки и другие полезные данные
-LOOPBACK=`losetup -f --show -o "$LINUX_PART_START" "$IMG_PATH"`
+LOOPBACK=`losetup -f` && losetup -f -o "$LINUX_PART_START" "$IMG_PATH"
 # https://www.stableit.ru/2011/05/losetup.html
 # -f     : losetup сам выбрал loop (минуя занятые)
 # -P     : losetup монтирует разделы в образе как отдельные подразделы,
@@ -178,7 +178,7 @@ if [[ -n $NEW_IMG_SIZE ]]; then
     if [[ $NEW_IMG_SIZE -lt $CUR_IMG_SIZE ]]; then
         echo "MIN"
 
-        LOOPBACK=$(losetup -Pf $IMG_PATH --show)
+        LOOPBACK=$(losetup -f) && losetup -Pf $IMG_PATH
         resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
         # Можно добавить параметр "-p" для отслеживания того, что делает программа.
         # Больше о параметрах здесь: http://man7.org/linux/man-pages/man8/resize2fs.8.html
@@ -201,7 +201,7 @@ if [[ -n $NEW_IMG_SIZE ]]; then
         parted $IMG_PATH rm 2
         parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
 
-        LOOPBACK=$(losetup -Pf $IMG_PATH --show)
+        LOOPBACK=$(losetup -f) && losetup -Pf $IMG_PATH
 
         resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
         sleep 1
