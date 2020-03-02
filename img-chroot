@@ -59,6 +59,8 @@ execute() {
   local DEV_IMAGE=$(losetup -f) && losetup -Pf $1
   sleep 0.5
 
+  RET=0
+
   # TODO: Check if it is Raspbian image w 2 partitions
   #       or if it have one partition
 
@@ -116,7 +118,7 @@ execute() {
 
     cp "$2" "${SCRIPT_DIR}/${SCRIPT_NAME}"
     # Run script in chroot with additional arguments
-    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} ${@:3}"
+    chroot ${MOUNT_POINT} /bin/sh -c "/root/${SCRIPT_NAME} ${@:3}" || RET=1
     # Removing script from chroot fs
     rm "${SCRIPT_DIR}/${SCRIPT_NAME}"
   else
@@ -133,6 +135,7 @@ execute() {
   mv ${MOUNT_POINT}/etc/ld.so.preload.temp-moved ${MOUNT_POINT}/etc/ld.so.preload
   umount_system ${MOUNT_POINT} ${DEV_IMAGE}
   set -e
+  exit ${RET}
 }
 
 # https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
