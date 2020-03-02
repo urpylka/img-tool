@@ -22,8 +22,14 @@ ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends bc jq unzip wget parted apt-utils git ca-certificates gawk lsof gcc libc-dev libcap2-bin udev \
-  && apt-get clean
+    && apt-get install -y --no-install-recommends \
+    git \
+    bc jq \
+    unzip wget \
+    parted gawk lsof udev \
+    apt-utils ca-certificates \
+    gcc libc-dev libcap2-bin \
+    && apt-get clean
 
 COPY ./qemu-arm-static /usr/share/qemu-arm-static
 
