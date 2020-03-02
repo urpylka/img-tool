@@ -15,20 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian
+FROM hypriot/qemu-register as qemu
 
-ENV DEBIAN_FRONTEND 'noninteractive'
-ENV LANG 'C.UTF-8'
-ENV LC_ALL 'C.UTF-8'
+FROM alpine
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    git \
-    unzip wget \
-    parted gawk lsof udev \
-    apt-utils ca-certificates \
-    gcc libc-dev libcap2-bin \
-    && apt-get clean
+# Coping compiled binaries to your image
+COPY --from=qemu /qemu-arm /qemu-arm
+COPY --from=qemu /qemu-aarch64 /qemu-aarch64
+COPY --from=qemu /qemu-ppc64le /qemu-ppc64le
+COPY --from=qemu /qemu-riscv64 /qemu-riscv64
+
+# Coping & executing script for registering qemu in the kernel
+COPY --from=qemu /register.sh /register.sh
+
+RUN apk add gawk parted bash
 
 COPY ./qemu-arm-static /usr/share/qemu-arm-static
 
