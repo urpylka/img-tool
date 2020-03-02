@@ -15,7 +15,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM hypriot/qemu-register as qemu
+
 FROM debian
+
+# Coping compiled binaries to your image
+COPY --from=qemu /qemu-arm /qemu-arm
+COPY --from=qemu /qemu-aarch64 /qemu-aarch64
+COPY --from=qemu /qemu-ppc64le /qemu-ppc64le
+COPY --from=qemu /qemu-riscv64 /qemu-riscv64
+
+# Coping & executing script for registering qemu in the kernel
+COPY --from=qemu /register.sh /register.sh
+# CMD ["/register.sh", "--reset"]
 
 ENV DEBIAN_FRONTEND 'noninteractive'
 ENV LANG 'C.UTF-8'
@@ -33,4 +45,4 @@ COPY ./img-resize /usr/sbin/
 COPY ./img-chroot /usr/sbin/
 
 WORKDIR /mnt
-CMD /bin/bash
+CMD ["/register.sh", "--reset"]
