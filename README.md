@@ -14,7 +14,7 @@ Image consist two scripts:
 * For work you need to mount directory from root system to docker-container: use `-v $(pwd):/mnt`
 * Also you can transfer variable to docker-container: use `-e NAME="VALUE"`
 
-### Execute in image or copy files to image
+### Execute in an image or copy files to an image
 
 ```bash
 docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0.4 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILES> <MOVE_TO> ]
@@ -22,7 +22,7 @@ docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0
 
 Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (and copying to target image until execution is finished). Leave `img-chroot <IMAGE>` without any argument for enter to `/bin/bash` on the target image.
 
-### Resize image (minimize & maximize)
+### Resize an image (minimize & maximize)
 
 ```bash
 docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0.4 img-resize <IMAGE> [NEW_SIZE]
