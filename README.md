@@ -32,9 +32,11 @@ docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt smirart/img-tool:v0
 
 ### Requirements
 
-gawk=1:4.2.1+dfsg-1     GNU Awk 4.2.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.1.2)
-parted=3.2-25           parted (GNU parted) 3.2
-util-linux=2.33.1-0.1   losetup from util-linux 2.33.1
+Requirement | Description
+--- | ---
+gawk=1:4.2.1+dfsg-1 | GNU Awk 4.2.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.1.2)
+parted=3.2-25 | parted (GNU parted) 3.2
+util-linux=2.33.1-0.1 | losetup from util-linux 2.33.1
 
 ## Build own version
 
