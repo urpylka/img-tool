@@ -30,6 +30,12 @@ docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0
 
 > If you leave `NEW_SIZE` parameter empty, program return posible minimum size. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
 
+Automatic minimize an image:
+
+```bash
+img-resize <IMAGE_PATH> $(img-resize <IMAGE_PATH> | head -1 | cut -b 15-)
+```
+
 ### Requirements
 
 Requirement | Description
