@@ -43,7 +43,7 @@ util-linux=2.33.1-0.1 | losetup from util-linux 2.33.1
 ```bash
 docker build -t img-tool:local .
 
-# for ease of use
+# Alias for ease of use
 alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool:local'
 ```
 
