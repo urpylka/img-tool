@@ -17,7 +17,7 @@ Image consist two scripts:
 ### Execute in an image or copy files to an image
 
 ```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0.4 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILES> <MOVE_TO> ]
+docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILES> <MOVE_TO> ]
 ```
 
 Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (and copying to target image until execution is finished). Leave `img-chroot <IMAGE>` without any argument for enter to `/bin/bash` on the target image.
@@ -25,7 +25,7 @@ Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (a
 ### Resize an image (minimize & maximize)
 
 ```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0.4 img-resize <IMAGE> [NEW_SIZE]
+docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4 img-resize <IMAGE> [NEW_SIZE]
 ```
 
 > If you leave `NEW_SIZE` parameter empty, program return posible minimum size. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
@@ -58,7 +58,7 @@ alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool
 Install the shortcut on macOS:
 
 ```bash
-echo "alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:v0.4'" >> ~/.bash_profile
+echo "alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4'" >> ~/.bash_profile
 ```
 
 Use the shortcut:
