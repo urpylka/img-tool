@@ -24,6 +24,7 @@ ENV LC_ALL 'C.UTF-8'
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     git \
+    file \
     unzip wget \
     parted gawk lsof udev \
     apt-utils ca-certificates \
