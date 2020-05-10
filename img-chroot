@@ -204,7 +204,7 @@ for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
 echo "================================================================================"
 
 if [[ $# > 0 ]]; then
-  [[ -f $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; echo "Template: img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]"; exit 1)
+  [[ -e $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; echo "Template: img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]"; exit 1)
 
   if [[ ! -z $2 ]]; then
     case "$2" in
