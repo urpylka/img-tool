@@ -1,0 +1,418 @@
+#! /usr/bin/env bash
+
+#
+# img-tool – script for executing commands in file-image,
+# coping files, managing free space in the OS-image
+#
+# Copyright 2018-2020 Artem Smirnov urpylka@gmail.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e # Exit immidiately on non-zero result
+
+echo_stamp() {
+  # TEMPLATE: echo_stamp <TEXT> <TYPE> <MOVE_CARRIER>
+  # TYPE: SUCCESS, ERROR, INFO
+
+  # More info there https://www.shellhacks.com/ru/bash-colors/
+
+  local TEXT=${1}
+  # TEXT="$(date '+[%Y-%m-%d %H:%M:%S]') ${TEXT}"
+  TEXT="\e[1m${TEXT}\e[0m" # BOLD
+
+  case "$2" in
+    SUCCESS)
+    TEXT="\e[32m${TEXT}\e[0m";; # GREEN
+    ERROR)
+    TEXT="\a\e[31m${TEXT}\e[0m"; # RED
+    TEXT="\a${TEXT}";; # SOUND
+    INFO)
+    TEXT="\e[34m${TEXT}\e[0m";; # BLUE
+  esac
+
+  if [ ! -z $3 ]; then
+    echo -ne ${TEXT}
+  else
+    echo -e ${TEXT}
+  fi
+}
+
+# https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
+# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
+my_travis_retry() {
+  local result=0
+  local count=1
+  while [ $count -le 3 ]; do
+    [ $result -ne 0 ] && {
+      echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
+    }
+    # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
+    ! { "$@"; result=$?; }
+    [ $result -eq 0 ] && break
+    count=$(($count + 1))
+    sleep 1
+  done
+
+  [ $count -gt 3 ] && {
+    echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
+  }
+
+  return $result
+}
+
+# This script doesn't work on Ubuntu because OS`s losetup does not consist --partscan (-P).
+
+# Idea: use `mount -o loop,offset`
+# https://stefanoprenna.com/blog/2014/09/22/tutorial-how-to-mount-raw-images-img-images-on-linux/
+# REPO_DIR=$(mktemp -d --suffix=.builder_repo)
+# mount -t ext4 -o loop,offset=$((94208 * 512)) images/my_image.img "$REPO_DIR"
+# mount -t vfat -o loop,offset=$((8192 * 512)) images/my_image.img "$REPO_DIR/boot"
+
+mount_image() {
+  # TEMPLATE: mount_image <IMAGE_PATH> [<FUNCTION> [...]]
+  # <IMAGE_PATH> may be image file or block device
+  # mount_image must return the MOUNT_POINT
+
+  local IMAGE_PATH=$1
+  local FILE_TYPE=`file ${IMAGE_PATH} | awk -F ': ' '{print $2}'`
+
+  if [[ -e ${IMAGE_PATH} ]]; then
+    if [[ ${FILE_TYPE} == block\ special* ]]; then
+      # block device
+
+      # It option doesn't work w macos devices due to hyperkit usb passthrought
+      # https://github.com/docker/for-mac/issues/3110
+      # https://devops.stackexchange.com/questions/4572/how-to-pass-a-dev-disk-device-on-macos-into-linux-docker
+      # https://mil.ad/docker/2018/05/06/access-usb-devices-in-container-in-mac.html
+      # https://github.com/moby/hyperkit/issues/149
+
+      local DEV_IMAGE=${IMAGE_PATH}
+
+      local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
+      echo_stamp "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot" "INFO"
+      # в macos /dev/disk2s1
+      # в linux /dev/sdb1
+      # в linux /dev/loop2p1 (loopback)
+      mount "${DEV_IMAGE}2" ${MOUNT_POINT}
+      mount "${DEV_IMAGE}1" ${MOUNT_POINT}/boot
+
+      local RET=0
+      [[ -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
+      RET=$?
+
+      echo_stamp "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}"
+      my_travis_retry umount -fl ${MOUNT_POINT}
+      losetup -d ${DEV_IMAGE}
+
+      exit ${RET}
+
+    elif [[ ${FILE_TYPE} == DOS/MBR\ boot\ sector* ]]; then
+      # image file
+
+      echo_stamp "Mount loop-image: ${IMAGE_PATH}"
+      local DEV_IMAGE=$(losetup -f) && losetup ${DEV_IMAGE} -P ${IMAGE_PATH}
+      sleep 0.5
+
+      # TODO: Check if it is Raspbian image w 2 partitions
+      #       or if it have just one partition (or another situation)
+
+      local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
+      echo_stamp "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot" "INFO"
+      mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
+      mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
+
+      local RET=0
+      [[ -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
+      RET=$?
+
+      echo_stamp "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}"
+      my_travis_retry umount -fl ${MOUNT_POINT}
+      losetup -d ${DEV_IMAGE}
+
+      exit ${RET}
+
+    else echo "Error: File type is incorrect"; exit 1; fi
+  else echo "Error: File doesn't exist ${IMAGE_PATH}" exit 1; fi
+}
+
+fix_partuuid() {
+    # TEMPLATE: fix_partuuid <MOUNT_POINT> <IMAGE_PATH> <OLD_DISKID>
+    local MOUNT_POINT=$1
+    local IMAGE_PATH=$2
+    local OLD_DISKID=$3
+
+    # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
+    local DISKID="$(fdisk -l "${IMAGE_PATH}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
+    sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
+    sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
+
+    # Another method to change partuuid
+    #sed -i 's/root=[^ ]*/root=\/dev\/mmcblk0p2/' /boot/cmdline.txt
+    #sed -i 's/.*  \/boot           vfat    defaults          0       2$/\/dev\/mmcblk0p1  \/boot           vfat    defaults          0       2/' /etc/fstab
+    #sed -i 's/.*  \/               ext4    defaults,noatime  0       1$/\/dev\/mmcblk0p2  \/               ext4    defaults,noatime  0       1/' /etc/fstab
+}
+
+add_settings() {
+  # TEMPLATE: add_settings <MOUNT_POINT>
+
+  local REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
+  if [[ $(arch) != 'armv7l' ]]; then
+    echo_stamp "Enable qemu-arm-static"
+    mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
+    echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
+    cp '/usr/share/qemu-wrapper' "${MOUNT_POINT}/usr/bin/qemu-wrapper"
+    cp '/usr/share/qemu-arm-static' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
+  else echo_stamp "qemu-arm-static is not need"
+  fi
+
+  echo_stamp "Bind system dirs"
+
+  echo_stamp "Mounting /proc in chroot... " "INFO" 1
+  if [ ! -d ${MOUNT_POINT}/proc ]; then
+    mkdir -p ${MOUNT_POINT}/proc; fi
+  mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
+
+  echo_stamp "Mounting /sys in chroot... " "INFO" 1
+  if [ ! -d ${MOUNT_POINT}/sys ]; then
+    mkdir -p ${MOUNT_POINT}/sys; fi
+  mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
+
+  echo_stamp "Mounting /dev/ and /dev/pts in chroot... " "INFO" 1 \
+  && mkdir -p -m 755 ${MOUNT_POINT}/dev/pts \
+  && mount -t devtmpfs -o mode=0755,nosuid devtmpfs ${MOUNT_POINT}/dev \
+  && mount -t devpts -o gid=5,mode=620 devpts ${MOUNT_POINT}/dev/pts \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
+
+  echo_stamp "Copy DNS records "  "INFO" 1 \
+  && cp -L /etc/resolv.conf ${MOUNT_POINT}/etc/resolv.conf \
+  && echo_stamp "OK" "SUCCESS" \
+  || (echo_stamp "Failed" "ERROR"; exit 1)
+}
+
+exec() {
+  # TEMPLATE: exec <MOUNT_POINT> [<EXECUTE_FILE> [...]]
+
+  local MOUNT_POINT=$1
+  add_settings ${MOUNT_POINT}
+
+  local RET=0
+  set +e
+  mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
+
+  if [[ $# > 1 ]]; then
+    local SCRIPT_NAME="$(basename $2).$(tr -dc 'A-F0-9' < /dev/urandom | dd bs=1 count=7 2>/dev/null)"
+    local SCRIPT_PATH="/root/${SCRIPT_NAME}"
+
+    cp "$2" "${MOUNT_POINT}/${SCRIPT_PATH}"
+    echo_stamp "Running the script" "INFO"
+    chroot ${MOUNT_POINT} /bin/sh -c "${SCRIPT_PATH} ${@:3}" || RET=1
+    rm "${MOUNT_POINT}/${SCRIPT_PATH}"
+  else
+    # https://wiki.archlinux.org/index.php/Change_root_(%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9)
+    # http://www.unix-lab.org/posts/chroot/
+    # https://habrahabr.ru/post/141012/
+    # https://losst.ru/vosstanovlenie-grub2
+    # http://unixteam.ru/content/virtualizaciya-ili-zapuskaem-prilozhenie-v-chroot-okruzhenii-razmyshleniya
+    # http://help.ubuntu.ru/wiki/%D0%B2%D0%BE%D1%81%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_grub
+    echo_stamp "Entering the chroot" "INFO" \
+    && chroot ${MOUNT_POINT} /bin/bash
+  fi
+
+  mv ${MOUNT_POINT}/etc/ld.so.preload.temp-moved ${MOUNT_POINT}/etc/ld.so.preload
+  set -e
+  return ${RET}
+}
+
+copy() {
+  # TEMPLATE: copy <MOUNT_POINT> <MOVE_FILE> <MOVE_TO>
+
+  local MOUNT_POINT=$1
+
+  local dir_name=$(dirname "${MOUNT_POINT}$3 /")
+
+  [[ ! -d ${dir_name} ]] && mkdir -p ${dir_name} \
+  && echo_stamp "Created ${dir_name}" "SUCCESS"
+
+  cp -r "$2" "${MOUNT_POINT}$3"
+}
+
+size() {
+  # TEMPLATE: copy <IMG_PATH> <NEW_IMG_SIZE>
+
+  IMG_PATH=$1
+  NEW_IMG_SIZE=$2
+
+  [ -e $IMG_PATH ] || (echo_bold "The file path doesn't exist!" "ERROR"; exit 1)
+  [ -f $IMG_PATH ] || (echo_bold "The file path isn't a file! Now `size` utility doesn't support working with devices." "ERROR"; exit 1)
+
+  # TODO: Check OS and current software
+  # For example check macOS
+
+  FDISK_INFO=$(fdisk -l "$IMG_PATH") #&& echo -e "$FDISK_INFO"
+  # https://raspberrypi.stackexchange.com/questions/13137/how-can-i-mount-a-raspberry-pi-linux-distro-image
+  # Or we can use: "parted -m $IMG_PATH unit B print free", but it have not DISKID
+  # https://ru.wikipedia.org/wiki/Разрежённый_файл
+
+  CUR_DISKID=$(echo -e "$FDISK_INFO" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+
+  LINUX_PART=$(echo -e "$FDISK_INFO" | tail -1 | grep Linux)
+  [[ -z $LINUX_PART ]] && (echo_bold "Linux partition is not at the end!" "ERROR"; exit 1)
+  LINUX_PART_START=$(($(echo $LINUX_PART | awk -F' ' '{ print $2 }') * 512))
+  LINUX_PART_END=$(($(echo $LINUX_PART | awk -F' ' '{ print $3 }') * 512))
+
+  # Можно делать луп на 2ю партицию просто используя "${LOOPBACK}p2",
+  # но тут проверочки и другие полезные данные
+  LOOPBACK=`losetup -f` && losetup $LOOPBACK -o "$LINUX_PART_START" "$IMG_PATH"
+  # https://www.stableit.ru/2011/05/losetup.html
+  # -f     : losetup сам выбрал loop (минуя занятые) - отказался чтобы образ был размещен,
+  # только на определенном раньше LOOPBACK (--show работает не везде)
+  # --show : печатает имя устройства, например /dev/loop4
+  # -P     : losetup монтирует разделы в образе как отдельные подразделы,
+  #          например /dev/loop0p1 и /dev/loop0p2
+  # ======================================================================
+  # losetup can return smhtn like that ↓
+  # losetup: os.img: Warning: file does not fit into a 512-byte sector; the end of the file will be ignored.
+  # Change image size to 512B diveded size
+  # https://stackoverflow.com/questions/26540693/how-do-i-read-write-a-block-device
+
+  # set +e
+  e2fsck -fy -v $LOOPBACK &> /dev/null
+  # set -e
+
+  LINUX_PART_MIN_SIZE=$(( $(resize2fs -P $LOOPBACK 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
+  losetup -d "$LOOPBACK"
+
+  IMG_MIN_SIZE=$(($LINUX_PART_START + $LINUX_PART_MIN_SIZE + 512))
+  CUR_IMG_SIZE=$(($LINUX_PART_END + 512))
+  OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'` # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
+
+  echo "IMG_MIN_SIZE: $IMG_MIN_SIZE"
+  echo "CUR_IMG_SIZE: $CUR_IMG_SIZE"
+  echo "OBJ_IMG_SIZE: $OBJ_IMG_SIZE"
+
+  if [[ -n $NEW_IMG_SIZE ]]; then
+      # FIXED:
+      # losetup: os.img: Warning: file does not fit into a 512-byte sector; the end of the file will be ignored.
+      DIVREMAINDER=$((${NEW_IMG_SIZE} % 512))
+      if [[ $DIVREMAINDER -gt 0 ]]; then
+          echo_bold "The NEW_IMG_SIZE ($NEW_IMG_SIZE) does not fit in 512-byte sector (logic of losetup utility), autocorrect size." "BLUE"
+          NEW_IMG_SIZE=$(($NEW_IMG_SIZE + 512 - $DIVREMAINDER))
+      fi
+
+      LINUX_PART_NEW_SIZE=$(($NEW_IMG_SIZE - $LINUX_PART_START - 512))
+      echo "LINUX_PART_NEW_SIZE: $LINUX_PART_NEW_SIZE"
+      # Кажется можно и не делать дробные сектора для увеличения размера раздела,
+      # но ввиду нестабильности и постоянных статических ошибок,
+      # а также для унификации кода сделал перерасчет LINUX_PART_NEW_SIZE и NEW_IMG_SIZE
+      # с учетом 4096-байтового сектора в LINUX_PART
+      DIVREMAINDER2=$((${LINUX_PART_NEW_SIZE} % 4096))
+      if [[ $DIVREMAINDER2 -gt 0 ]]; then
+          echo_bold "The LINUX_PART_NEW_SIZE ($LINUX_PART_NEW_SIZE) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrect size. And NEW_IMG_SIZE ($NEW_IMG_SIZE) too." "BLUE"
+          LINUX_PART_NEW_SIZE=$(($LINUX_PART_NEW_SIZE + 4096 - $DIVREMAINDER2))
+          NEW_IMG_SIZE=$(($LINUX_PART_START + $LINUX_PART_NEW_SIZE + 512))
+      fi
+      LINUX_PART_NEW_END=$(($LINUX_PART_START + $LINUX_PART_NEW_SIZE))
+
+      echo "NEW_IMG_SIZE: $NEW_IMG_SIZE"
+      echo "LINUX_PART_NEW_SIZE: $LINUX_PART_NEW_SIZE"
+      echo "LINUX_PART_NEW_END: $LINUX_PART_NEW_END"
+
+      # https://andreyex.ru/operacionnaya-sistema-linux/kak-sravnivat-chisla-v-bash
+      [[ $NEW_IMG_SIZE -lt $IMG_MIN_SIZE ]] && (echo_bold "The image size cannot be less then $IMG_MIN_SIZE" "ERROR"; exit 1)
+      [[ $NEW_IMG_SIZE -eq $CUR_IMG_SIZE ]] && (echo_bold "Nothing to do" "SUCCESS"; exit 1)
+
+      # https://blog.eaglenn.ru/izmenenie-razmera-razdela-ext2-ext3-ext4-bez-poteri-informatsii/
+      if [[ $NEW_IMG_SIZE -lt $CUR_IMG_SIZE ]]; then
+          echo "MIN"
+
+          LOOPBACK=$(losetup -f) && losetup -Pf $IMG_PATH
+          resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
+          # Можно добавить параметр "-p" для отслеживания того, что делает программа.
+          # Больше о параметрах здесь: http://man7.org/linux/man-pages/man8/resize2fs.8.html
+          # Последним параметром указывается размер раздела,
+          # если параметр не указан, то раздел увеличивается до последнего сектора устройства.
+
+          sleep 1
+          losetup -d $LOOPBACK
+
+          parted $IMG_PATH rm 2
+          parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
+
+          # https://linux.die.net/man/1/truncate
+          truncate -s $(($LINUX_PART_NEW_END + 512)) $IMG_PATH
+      else
+          echo "MAX"
+
+          truncate -s$NEW_IMG_SIZE $IMG_PATH
+
+          parted $IMG_PATH rm 2
+          parted $IMG_PATH unit B mkpart primary $LINUX_PART_START $LINUX_PART_NEW_END
+
+          LOOPBACK=$(losetup -f) && losetup -Pf $IMG_PATH
+
+          resize2fs ${LOOPBACK}p2 $((LINUX_PART_NEW_SIZE / 4096))
+          sleep 1
+          losetup -d $LOOPBACK
+      fi
+
+      # More information
+      echo "================================================================================"
+      parted -m $IMG_PATH unit B print free
+      echo "================================================================================"
+
+      mount_image ${IMG_PATH} fix_partuuid ${IMG_PATH} ${CUR_DISKID}
+  fi
+}
+
+if [ $(whoami) != "root" ]; then
+  echo ""
+  echo "********************************************************************"
+  echo "******************** This should be run as root ********************"
+  echo "********************************************************************"
+  echo ""
+  exit 1
+fi
+
+info() {
+  echo "Incorrect command. Use:"
+  echo "img-tool <IMAGE> exec <SCRIPT/COMMAND> [...]"
+  echo "img-tool <IMAGE> copy <MOVE_FILE> <MOVE_TO>"
+  echo "img-tool <IMAGE> size [<NEW_SIZE>]"
+}
+
+echo "================================================================================"
+for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
+echo "================================================================================"
+
+if [[ $# > 0 ]]; then
+  [[ -e $1 ]] || (echo_stamp "$1 does not exist" "ERROR"; info; exit 1)
+
+  if [[ ! -z $2 ]]; then
+    case "$2" in
+      exec)
+        mount_image $1 exec $3 ${@:4};;
+      copy)
+        mount_image $1 copy $3 $4;;
+      size)
+        size $1 $3;;
+      *)
+        info;;
+
+    esac
+  else mount_image $1 exec; fi
+fi
