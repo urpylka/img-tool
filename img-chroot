@@ -24,7 +24,7 @@ echo_stamp() {
 
   # More info there https://www.shellhacks.com/ru/bash-colors/
 
-  TEXT="$(date '+[%Y-%m-%d %H:%M:%S]') $1"
+  local TEXT="$(date '+[%Y-%m-%d %H:%M:%S]') $1"
   TEXT="\e[1m$TEXT\e[0m" # BOLD
 
   case "$2" in
@@ -98,7 +98,7 @@ execute() {
   mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
   mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
-  REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
+  local REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
   if [[ $(arch) != 'armv7l' ]]; then
     echo_stamp "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
@@ -136,7 +136,7 @@ execute() {
   && echo_stamp "OK" "SUCCESS" \
   || (echo_stamp "Failed" "ERROR"; exit 1)
 
-  RET=0
+  local RET=0
   set +e
   mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
 

@@ -82,7 +82,7 @@ fix_partuuid() {
     mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
     # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
-    DISKID="$(fdisk -l "$IMAGE_PATH" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
+    local DISKID="$(fdisk -l "$IMAGE_PATH" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
     sed -i "s/${OLD_DISKID}/${DISKID}/g" ${MOUNT_POINT}/etc/fstab
     sed -i "s/${OLD_DISKID}/${DISKID}/" ${MOUNT_POINT}/boot/cmdline.txt
 
