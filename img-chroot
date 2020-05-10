@@ -90,8 +90,6 @@ execute() {
   local DEV_IMAGE=$(losetup -f) && losetup -Pf $1
   sleep 0.5
 
-  RET=0
-
   # TODO: Check if it is Raspbian image w 2 partitions
   #       or if it have one partition
 
@@ -138,6 +136,7 @@ execute() {
   && echo_stamp "OK" "SUCCESS" \
   || (echo_stamp "Failed" "ERROR"; exit 1)
 
+  RET=0
   set +e
   mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
 
