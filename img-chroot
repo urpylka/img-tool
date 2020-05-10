@@ -52,6 +52,14 @@ echo_stamp() {
 # mount -t ext4 -o loop,offset=$((94208 * 512)) image/clever_qemu_test_2_20180822_163141.img "$REPO_DIR"
 # mount -t vfat -o loop,offset=$((8192 * 512)) image/clever_qemu_test_2_20180822_163141.img "$REPO_DIR/boot"
 
+umount_image() {
+  # TEMPLATE: umount_image <MOUNT_POINT> <DEV_IMAGE>
+
+  echo_stamp "Unmount chroot rootfs and boot partition: $1"
+  my_travis_retry umount -fl $1
+  losetup -d $2
+}
+
 execute() {
   # execute <IMAGE_PATH> [<EXECUTE_FILE> [...]]
 
@@ -133,7 +141,7 @@ execute() {
   fi
 
   mv ${MOUNT_POINT}/etc/ld.so.preload.temp-moved ${MOUNT_POINT}/etc/ld.so.preload
-  umount_system ${MOUNT_POINT} ${DEV_IMAGE}
+  umount_image ${MOUNT_POINT} ${DEV_IMAGE}
   set -e
   exit ${RET}
 }
@@ -161,14 +169,6 @@ my_travis_retry() {
   return $result
 }
 
-umount_system() {
-  # TEMPLATE: umount_system <MOUNT_POINT> <DEV_IMAGE>
-
-  echo_stamp "Unmount chroot rootfs and boot partition: $1"
-  my_travis_retry umount -fl $1
-  losetup -d $2
-}
-
 copy_to_image() {
   # copy_to_image <IMAGE_PATH> <MOVE_FILE> <MOVE_TO>
 
@@ -187,7 +187,7 @@ copy_to_image() {
   && echo_stamp "Created ${dir_name}" "SUCCESS"
 
   cp -r "$2" "${MOUNT_POINT}$3"
-  umount_system ${MOUNT_POINT} ${DEV_IMAGE}
+  umount_image ${MOUNT_POINT} ${DEV_IMAGE}
 }
 
 if [ $(whoami) != "root" ]; then
