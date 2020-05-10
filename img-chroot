@@ -44,6 +44,29 @@ echo_stamp() {
   fi
 }
 
+# https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
+# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
+my_travis_retry() {
+  local result=0
+  local count=1
+  while [ $count -le 3 ]; do
+    [ $result -ne 0 ] && {
+      echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
+    }
+    # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
+    ! { "$@"; result=$?; }
+    [ $result -eq 0 ] && break
+    count=$(($count + 1))
+    sleep 1
+  done
+
+  [ $count -gt 3 ] && {
+    echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
+  }
+
+  return $result
+}
+
 # This script doesn't work on Ubuntu because OS`s losetup does not consist --partscan (-P).
 
 # Idea: use `mount -o loop,offset`
@@ -144,29 +167,6 @@ execute() {
   umount_image ${MOUNT_POINT} ${DEV_IMAGE}
   set -e
   exit ${RET}
-}
-
-# https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
-# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
-my_travis_retry() {
-  local result=0
-  local count=1
-  while [ $count -le 3 ]; do
-    [ $result -ne 0 ] && {
-      echo -e "\n${ANSI_RED}The command \"$@\" failed. Retrying, $count of 3.${ANSI_RESET}\n" >&2
-    }
-    # ! { } ignores set -e, see https://stackoverflow.com/a/4073372
-    ! { "$@"; result=$?; }
-    [ $result -eq 0 ] && break
-    count=$(($count + 1))
-    sleep 1
-  done
-
-  [ $count -gt 3 ] && {
-    echo -e "\n${ANSI_RED}The command \"$@\" failed 3 times.${ANSI_RESET}\n" >&2
-  }
-
-  return $result
 }
 
 copy_to_image() {
