@@ -34,12 +34,12 @@ my_echo() {
     GREEN)
     TEXT="\e[32m${TEXT}\e[0m";; # GREEN
     RED)
-    TEXT="\a\e[31m${TEXT}\e[0m"; # RED
+    TEXT="\a\e[31m${TEXT}\e[0m";; # RED
     BLUE)
     TEXT="\e[34m${TEXT}\e[0m";; # BLUE
   esac
 
-  # TEXT="\a${TEXT}";; # SOUND
+  # TEXT="\a${TEXT}" # SOUND
 
   if [ ! -z $3 ]; then
     echo -ne ${TEXT}
@@ -108,7 +108,7 @@ mount_image() {
       mount "${DEV_IMAGE}1" ${MOUNT_POINT}/boot
 
       local RET=0
-      [[ -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
+      [[ ! -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
       RET=$?
 
       my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}"
@@ -133,17 +133,17 @@ mount_image() {
       mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
 
       local RET=0
-      [[ -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
+      [[ ! -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
       RET=$?
 
-      my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}"
+      my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
       my_travis_retry umount -fl ${MOUNT_POINT}
       losetup -d ${DEV_IMAGE}
 
       exit ${RET}
 
-    else echo "Error: File type is incorrect"; exit 1; fi
-  else echo "Error: File doesn't exist ${IMAGE_PATH}" exit 1; fi
+    else my_echo "Error: File type is incorrect" "RED"; exit 1; fi
+  else my_echo "Error: File doesn't exist ${IMAGE_PATH}" "RED"; exit 1; fi
 }
 
 fix_partuuid() {
@@ -391,11 +391,13 @@ fi
 
 info() {
   echo "Incorrect command. Use:"
-  echo "img-tool <IMAGE> exec <SCRIPT/COMMAND> [...]"
+  echo "img-tool <IMAGE> exec"
+  echo "img-tool <IMAGE> exec <SCRIPT> [...]"
+  # TODO: Add ability executing commands from stdin
   echo "img-tool <IMAGE> copy <MOVE_FILE> <MOVE_TO>"
   echo "img-tool <IMAGE> size [<NEW_SIZE>]"
-  echo "For minimize image:"
-  echo "img-tool <IMAGE> size $(img-tool <IMAGE> size | head -1 | cut -b 15-)"
+  echo "To minimize image:"
+  echo "img-tool <IMAGE> size \$(img-tool <IMAGE> size | head -1 | cut -b 15-)"
 }
 
 echo "================================================================================"
@@ -417,5 +419,5 @@ if [[ $# > 0 ]]; then
         info;;
 
     esac
-  else mount_image $1 exec; fi
+  else info; fi
 fi
