@@ -389,15 +389,26 @@ if [ $(whoami) != "root" ]; then
   exit 1
 fi
 
-info() {
-  echo "Incorrect command. Use:"
-  echo "img-tool <IMAGE> exec"
-  echo "img-tool <IMAGE> exec <SCRIPT> [...]"
+get_version() {
+  echo -en "$1: " && apt show $1 2>&1 | grep Version | gawk -F ': ' '{print $2}'
+}
+
+help() {
+  my_echo "Use:" "BLUE"
+  echo "img-tool <IMAGE> exec [ <SCRIPT> [...] ]"
   # TODO: Add ability executing commands from stdin
   echo "img-tool <IMAGE> copy <MOVE_FILE> <MOVE_TO>"
-  echo "img-tool <IMAGE> size [<NEW_SIZE>]"
+  echo "img-tool <IMAGE> size [ <NEW_SIZE> ]"
   echo "To minimize image:"
   echo "img-tool <IMAGE> size \$(img-tool <IMAGE> size | head -1 | cut -b 15-)"
+  my_echo "Dependencies versions:"  "BLUE"
+  get_version util-linux
+  echo "losetup is using from util-linux"
+  fsck
+  truncate --version | head -n1
+  chroot --version | head -n1
+  resize2fs 2>&1 | head -n1
+  get_version parted
 }
 
 echo "================================================================================"
@@ -405,9 +416,10 @@ for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
 echo "================================================================================"
 
 if [[ $# > 0 ]]; then
-  [[ -e $1 ]] || (my_echo "$1 does not exist" "RED"; info; exit 1)
 
-  if [[ ! -z $2 ]]; then
+  [[ -e $1 ]] || (my_echo "$1 does not exist" "RED"; help; exit 1)
+
+  if [[ -z $2 ]]; then help; else
     case "$2" in
       exec)
         mount_image $1 exec $3 ${@:4};;
@@ -416,8 +428,8 @@ if [[ $# > 0 ]]; then
       size)
         size $1 $3;;
       *)
-        info;;
-
+        help;;
     esac
-  else info; fi
+  fi
+else help
 fi
