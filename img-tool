@@ -291,9 +291,7 @@ size() {
   # Change image size to 512B diveded size
   # https://stackoverflow.com/questions/26540693/how-do-i-read-write-a-block-device
 
-  # set +e
-  e2fsck -fy -v $LOOPBACK &> /dev/null
-  # set -e
+  e2fsck -fy -v $LOOPBACK &> /dev/null || (my_echo "e2fsck changed the image. Maybe he is broken. Try again." "RED"; exit 1;)
 
   local LINUX_PART_MIN_SIZE=$(( $(resize2fs -P $LOOPBACK 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
   losetup -d "$LOOPBACK"
