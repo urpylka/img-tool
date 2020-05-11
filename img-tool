@@ -75,7 +75,7 @@ my_travis_retry() {
 
 # Idea: use `mount -o loop,offset`
 # https://stefanoprenna.com/blog/2014/09/22/tutorial-how-to-mount-raw-images-img-images-on-linux/
-# REPO_DIR=$(mktemp -d --suffix=.builder_repo)
+# REPO_DIR=$(mktemp -d --suffix=.img-tool)
 # mount -t ext4 -o loop,offset=$((94208 * 512)) images/my_image.img "$REPO_DIR"
 # mount -t vfat -o loop,offset=$((8192 * 512)) images/my_image.img "$REPO_DIR/boot"
 
