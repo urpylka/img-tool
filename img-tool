@@ -295,12 +295,12 @@ size() {
   e2fsck -fy -v $LOOPBACK &> /dev/null
   # set -e
 
-  LINUX_PART_MIN_SIZE=$(( $(resize2fs -P $LOOPBACK 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
+  local LINUX_PART_MIN_SIZE=$(( $(resize2fs -P $LOOPBACK 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
   losetup -d "$LOOPBACK"
 
-  IMG_MIN_SIZE=$(($LINUX_PART_START + $LINUX_PART_MIN_SIZE + 512))
-  CUR_IMG_SIZE=$(($LINUX_PART_END + 512))
-  OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'` # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
+  local IMG_MIN_SIZE=$(($LINUX_PART_START + $LINUX_PART_MIN_SIZE + 512))
+  local CUR_IMG_SIZE=$(($LINUX_PART_END + 512))
+  local OBJ_IMG_SIZE=`du -sb $IMG_PATH | awk -F' ' '{ print $1 }'` # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
 
   echo "IMG_MIN_SIZE: $IMG_MIN_SIZE"
   echo "CUR_IMG_SIZE: $CUR_IMG_SIZE"
