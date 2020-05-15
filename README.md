@@ -4,6 +4,8 @@ Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian ima
 
 Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc. Project used in [COEX CLEVER](https://github.com/copterexpress/clever).
 
+All plans of development you can find at [Github Projects](https://github.com/urpylka/img-tool/projects/1).
+
 ## API v0.5
 
 For easy using the docker image you need to make alias:
