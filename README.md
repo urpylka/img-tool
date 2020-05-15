@@ -1,75 +1,67 @@
 # img-tool
 
-Utilities for execute commands (amd64 &amp; armhf) &amp; resize the file-images. Due to docker scripts can work on Ubuntu, macOS & etc.
+Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Ubuntu, macOS & etc.
 
-Now it only works with **Raspbian OS images** due to filesystem partition scheme. Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc. Project used in [COEX CLEVER](https://github.com/copterexpress/clever).
+Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc. Project used in [COEX CLEVER](https://github.com/copterexpress/clever).
 
-## API v0.4
+## API v0.5
 
-Image consist two scripts:
-
-1. **img-chroot** – for execute something in the file-image and copy to the file-image
-2. **img-resize** – for change size of the image to minimize & maximize
-
-* For work you need to mount directory from root system to docker-container: use `-v $(pwd):/mnt`
-* Also you can transfer variable to docker-container: use `-e NAME="VALUE"`
-
-### Execute in an image or copy files to an image
+For easy using the docker image you need to make alias:
 
 ```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4 img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILES> <MOVE_TO> ]
+alias img-tool='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.5 img-tool'
 ```
 
-Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (and copying to target image until execution is finished). Leave `img-chroot <IMAGE>` without any argument for enter to `/bin/bash` on the target image.
+* You can add this command to `~/.bash_profile` to make it permanent.
+* For work you need to mount directory from root system to docker container `-v $(pwd):/mnt`. After it `IMG_PATH`, `SCRIPT`, `MOVE_FILES` will have been used from this directory. But `IMG_PATH` can be a block device (like your USB flash drive). It didn't work at `macOS` because that docker used Hyperkit ([who can't work with USB devices](https://github.com/moby/hyperkit/issues/149)).
+* Also you need to mount `/dev` directory and use `--privileged` for work with this docker image.
 
-### Resize an image (minimize & maximize)
+Docker image consist **img-tool** script. It can be used for:
 
-```bash
-docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4 img-resize <IMAGE> [NEW_SIZE]
-```
+1. Executing something in the images
 
-> If you leave `NEW_SIZE` parameter empty, program return posible minimum size. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
+    ```bash
+    img-tool <IMG_PATH> exec <SCRIPT> [...]
+    ```
 
-Automatic minimize an image:
+    Where `[...]` is arguments for `<SCRIPT>`. `<SCRIPT>` is locating on the host (and copying to target image until execution is finished). Leave `img-tool <IMAGE> exec` without any arguments for enter to `/bin/bash` at the target image.
 
-```bash
-img-resize <IMAGE_PATH> $(img-resize <IMAGE_PATH> | head -1 | cut -b 15-)
-```
+2. Coping to the images
 
-### Requirements
+    ```bash
+    img-tool <IMG_PATH> copy <MOVE_FILES> <MOVE_TO>
+    ```
 
-Requirement | Description
---- | ---
-gawk=1:4.2.1+dfsg-1 | GNU Awk 4.2.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.1.2)
-parted=3.2-25 | parted (GNU parted) 3.2
-util-linux=2.33.1-0.1 | losetup from util-linux 2.33.1
+3. Changing size (minimize & maximize) of the images **(works only with image files)**
+
+    ```bash
+    img-tool <IMG_PATH> size [NEW_SIZE]
+    ```
+
+    If you leave `NEW_SIZE` argument empty, program return posible minimum size and other information about the image. It works by **resize2fs** and maybe more than actually (for take minimum size minimize image a few times (usually 3-4 times)). It may also work poorly if used 1K, 2K block in FS (more on [man7.org](http://man7.org/linux/man-pages/man8/resize2fs.8.html)).
+
+    For automatic minimize the image use:
+
+    ```bash
+    img-tool <IMG_PATH> size $(img-tool <IMG_PATH> size | head -1 | cut -b 15-)
+    ```
 
 ## Build own version
 
 ```bash
 docker build -t img-tool:local .
 
-# Alias for ease of use
-alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool:local'
+# Alias for ease using
+alias img-tool='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool:local img-tool'
 ```
 
-## Other
+### Requirements in the Docker image
 
-Install the shortcut on macOS:
-
-```bash
-echo "alias img='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.4'" >> ~/.bash_profile
-```
-
-Use the shortcut:
-
-```bash
-img img-resize <IMAGE> [NEW_SIZE]
-```
-
-```bash
-img img-chroot <IMAGE> [ exec <SCRIPT> [...] | copy <MOVE_FILE> <MOVE_TO> ]
-```
+Requirement | Description
+--- | ---
+gawk=1:4.2.1+dfsg-1 | GNU Awk 4.2.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.1.2)
+parted=3.2-25 | parted (GNU parted) 3.2
+util-linux=2.33.1-0.1 | losetup from util-linux 2.33.1
 
 ## License
 
