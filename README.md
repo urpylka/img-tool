@@ -11,11 +11,11 @@ All plans of development you can find at [Github Projects](https://github.com/ur
 For easy using the docker image you need to make alias:
 
 ```bash
-alias img-tool='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt urpylka/img-tool:0.5 img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.5 img-tool'
 ```
 
 * You can add this command to `~/.bash_profile` to make it permanent.
-* For work you need to mount directory from root system to docker container `-v $(pwd):/mnt`. After it `IMG_PATH`, `SCRIPT`, `MOVE_FILES` will have been used from this directory. But `IMG_PATH` can be a block device (like your USB flash drive). It didn't work at `macOS` because that docker used Hyperkit ([who can't work with USB devices](https://github.com/moby/hyperkit/issues/149)).
+* For work you need to mount directory from root system to docker container `-v $(pwd):/mnt`. After that `IMG_PATH`, `SCRIPT`, `MOVE_FILES` will have been used from this directory. But `IMG_PATH` can be a block device (like your USB flash drive). For that you need to mount host device `-v /dev/disk1:/dev/disk1` It didn't work at `macOS` because that docker used Hyperkit ([who can't work with USB devices](https://github.com/moby/hyperkit/issues/149)).
 * Also you need to mount `/dev` directory and use `--privileged` for work with this docker image.
 
 Docker image consist **img-tool** script. It can be used for:
