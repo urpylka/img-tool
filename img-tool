@@ -50,7 +50,7 @@ my_echo() {
 
 # https://gist.github.com/letmaik/caa0f6cc4375cbfcc1ff26bd4530c2a3
 # https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
-my_travis_retry() {
+travis_retry() {
   local result=0
   local count=1
   while [ $count -le 3 ]; do
@@ -71,79 +71,98 @@ my_travis_retry() {
   return $result
 }
 
-# This script doesn't work on Ubuntu because OS`s losetup does not consist --partscan (-P).
+get_info() {
+  local IMG_PATH=$1
+  local FDISK=$(fdisk -l ${IMG_PATH} || (my_echo "fdisk error" "RED"; exit 1;))
 
-# Idea: use `mount -o loop,offset`
-# https://stefanoprenna.com/blog/2014/09/22/tutorial-how-to-mount-raw-images-img-images-on-linux/
-# REPO_DIR=$(mktemp -d --suffix=.img-tool)
-# mount -t ext4 -o loop,offset=$((94208 * 512)) images/my_image.img "$REPO_DIR"
-# mount -t vfat -o loop,offset=$((8192 * 512)) images/my_image.img "$REPO_DIR/boot"
+  DISK_ID=$(echo -e "${FDISK}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+  local PARTS=$(echo -e "${FDISK}" | awk 'FNR>8')
+  PARTS_COUNT=$(echo -e "${PARTS}" | wc -l)
+
+  if [[ "${PARTS_COUNT}" != 1 && "${PARTS_COUNT}" != 2 ]] ; then
+    my_echo "Image is incorrect" "RED"; exit 1;
+  fi
+
+  local PART1=$(echo -e "${PARTS}" | awk 'FNR==1')
+  local PART2=$(echo -e "${PARTS}" | awk 'FNR==2')
+
+  PART1_TYPE=$(echo ${PART1} | awk -F' ' '{print $7}')
+  PART1_START=$(echo ${PART1} | awk -F' ' '{print $2}')
+  PART1_SIZE=$(echo ${PART1} | awk -F' ' '{print $4}')
+
+  PART2_TYPE=$(echo ${PART2} | awk -F' ' '{print $7}')
+  PART2_START=$(echo ${PART2} | awk -F' ' '{print $2}')
+  PART2_SIZE=$(echo ${PART2} | awk -F' ' '{print $4}')
+}
 
 mount_image() {
-  # TEMPLATE: mount_image <IMAGE_PATH> [<FUNCTION> [...]]
-  # <IMAGE_PATH> may be image file or block device
-  # mount_image must return the MOUNT_POINT
+  # TEMPLATE: mount_image <IMG_PATH> <FUNCTION> [...]
+  # <IMG_PATH> may be image file or block device
+  # mount_image is executing function from arguments
+  # <FUNCTION> <MOUNT_POINT> [...]
 
-  local IMAGE_PATH=$1
-  local FILE_TYPE=`file ${IMAGE_PATH} | awk -F ': ' '{print $2}'`
+  local IMG_PATH=$1
+  local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
 
-  if [[ -e ${IMAGE_PATH} ]]; then
-    if [[ ${FILE_TYPE} == block\ special* ]]; then
-      # block device
+  # what is IMG_PATH
+  case `file ${IMG_PATH} | awk -F ': ' '{print $2}'` in
+    block\ special*)
+      local FILE_TYPE=block
+      local DEV_IMAGE=${IMG_PATH};;
 
-      # It option doesn't work w macos devices due to hyperkit usb passthrought
-      # https://github.com/docker/for-mac/issues/3110
-      # https://devops.stackexchange.com/questions/4572/how-to-pass-a-dev-disk-device-on-macos-into-linux-docker
-      # https://mil.ad/docker/2018/05/06/access-usb-devices-in-container-in-mac.html
-      # https://github.com/moby/hyperkit/issues/149
+    DOS/MBR\ boot\ sector*)
+      local FILE_TYPE=file
+      local DEV_IMAGE=$(losetup -f)
+      losetup ${DEV_IMAGE} ${IMG_PATH} || (my_echo "losetup error" "RED"; exit 1;)
+      sleep 0.5;;
 
-      local DEV_IMAGE=${IMAGE_PATH}
+    *)
+      my_echo "IMG_PATH incorrect" "RED"; exit 1;;
+  esac
 
-      local MOUNT_POINT=$(mktemp -d --suffix=.builder_image)
-      my_echo "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot" "BLUE"
-      # в macos /dev/disk2s1
-      # в linux /dev/sdb1
-      # в linux /dev/loop2p1 (loopback)
-      mount "${DEV_IMAGE}2" ${MOUNT_POINT}
-      mount "${DEV_IMAGE}1" ${MOUNT_POINT}/boot
+  # what king this image: raspbian, armbian
+  # filesystem / architecture
+  get_info ${IMG_PATH}
 
-      local RET=0
-      [[ ! -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
-      RET=$?
+  case ${PARTS_COUNT} in
+    1)
+      my_echo "One partition temporary doesn't support" "RED"; exit 1
+      ;;
+    2)
+      if [[ ${PART1_TYPE} == "W95" && ${PART2_TYPE} == "Linux" ]]; then
 
-      my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}"
-      my_travis_retry umount -fl ${MOUNT_POINT}
-      losetup -d ${DEV_IMAGE}
+        PART1_START=$((${PART1_START}*512))
+        PART1_SIZE=$((${PART1_SIZE}*512))
+        PART2_START=$((${PART2_START}*512))
+        PART2_SIZE=$((${PART2_SIZE}*512))
 
-      exit ${RET}
+        # https://linux.die.net/man/8/mount
+        mount -t ext4 -o offset=${PART2_START},sizelimit=${PART2_SIZE} ${DEV_IMAGE} ${MOUNT_POINT}
+        mount -t vfat -o offset=${PART1_START},sizelimit=${PART1_SIZE} ${DEV_IMAGE} ${MOUNT_POINT}/boot
 
-    elif [[ ${FILE_TYPE} == DOS/MBR\ boot\ sector* ]]; then
-      # image file
+        local IMG_TYPE="Raspbian"
+      else
+        my_echo "Incorrect scheme of partitions" "RED"; exit 1
+      fi
+      ;;
+    *)
+      my_echo "Incorrect scheme of partitions" "RED"; exit 1
+      ;;
+  esac
 
-      my_echo "Mount loop-image: ${IMAGE_PATH}"
-      local DEV_IMAGE=$(losetup -f) && losetup ${DEV_IMAGE} -P ${IMAGE_PATH}
-      sleep 0.5
+  if [[ -z ${2} ]]; then
+    my_echo "The function isn't setted" "RED"
+    local RET=1
+  else
+    ${2} ${MOUNT_POINT} ${@:3}
+    local RET=$?
+  fi
 
-      # TODO: Check if it is Raspbian image w 2 partitions
-      #       or if it have just one partition (or another situation)
+  my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
+  travis_retry umount -fl ${MOUNT_POINT}
+  losetup -d ${DEV_IMAGE}
 
-      local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
-      my_echo "Mount dirs ${MOUNT_POINT} & ${MOUNT_POINT}/boot" "BLUE"
-      mount "${DEV_IMAGE}p2" ${MOUNT_POINT}
-      mount "${DEV_IMAGE}p1" ${MOUNT_POINT}/boot
-
-      local RET=0
-      [[ ! -z ${2} ]] && ${2} ${MOUNT_POINT} ${@:3}
-      RET=$?
-
-      my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
-      my_travis_retry umount -fl ${MOUNT_POINT}
-      losetup -d ${DEV_IMAGE}
-
-      exit ${RET}
-
-    else my_echo "Error: File type is incorrect" "RED"; exit 1; fi
-  else my_echo "Error: File doesn't exist ${IMAGE_PATH}" "RED"; exit 1; fi
+  exit ${RET}
 }
 
 fix_partuuid() {
@@ -206,7 +225,7 @@ add_settings() {
 }
 
 exec() {
-  # TEMPLATE: exec <MOUNT_POINT> [<EXECUTE_FILE> [...]]
+  # TEMPLATE: exec <MOUNT_POINT> <EXECUTE_FILE> [...]
 
   local MOUNT_POINT=$1
   add_settings ${MOUNT_POINT}
@@ -264,7 +283,7 @@ size() {
   # TODO: Check OS and current software
   # For example check macOS
 
-  FDISK_INFO=$(fdisk -l "$IMG_PATH") #&& echo -e "$FDISK_INFO"
+  FDISK_INFO=$(fdisk -l ${IMG_PATH}) && echo -e "${FDISK_INFO}"
   # https://raspberrypi.stackexchange.com/questions/13137/how-can-i-mount-a-raspberry-pi-linux-distro-image
   # Or we can use: "parted -m $IMG_PATH unit B print free", but it have not DISKID
   # https://ru.wikipedia.org/wiki/Разрежённый_файл
