@@ -95,30 +95,49 @@ get_info() {
   PART2_SIZE=$(echo ${PART2} | awk -F' ' '{print $4}')
 }
 
-mount_image() {
-  # TEMPLATE: mount_image <IMG_PATH> <FUNCTION> [...]
+get_block_device() {
+  # TEMPLATE: get_block_device <IMG_PATH> <FUNCTION> [...]
   # <IMG_PATH> may be image file or block device
-  # mount_image is executing function from arguments
-  # <FUNCTION> <MOUNT_POINT> [...]
+  # get_block_device is executing function from arguments
+  # <FUNCTION> <IMG_PATH> <DEV_IMAGE> <FILE_TYPE> [...]
+  # It is waiting RET code from <FUNCTION>
 
   local IMG_PATH=$1
-  local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
 
   # what is IMG_PATH
   case `file ${IMG_PATH} | awk -F ': ' '{print $2}'` in
     block\ special*)
-      local FILE_TYPE=block
-      local DEV_IMAGE=${IMG_PATH};;
+      FILE_TYPE=block
+      DEV_IMAGE=${IMG_PATH};;
 
     DOS/MBR\ boot\ sector*)
-      local FILE_TYPE=file
-      local DEV_IMAGE=$(losetup -f)
+      FILE_TYPE=file
+      DEV_IMAGE=$(losetup -f)
       losetup ${DEV_IMAGE} ${IMG_PATH} || (my_echo "losetup error" "RED"; exit 1;)
       sleep 0.5;;
 
     *)
       my_echo "IMG_PATH incorrect" "RED"; exit 1;;
   esac
+
+  # I had wanted to make wrapper
+  # local RET=$(${2} ${IMG_PATH} ${DEV_IMAGE} ${FILE_TYPE} ${@:3})
+  # losetup -d ${DEV_IMAGE}
+  # exit ${RET}
+}
+
+mount_image() {
+  # TEMPLATE: mount_image <IMG_PATH> <FUNCTION> [...]
+  # <IMG_PATH> may be image file or block device
+  # mount_image is executing function from arguments
+  # <FUNCTION> <MOUNT_POINT> [...]
+
+  local IMG_PATH=${1}
+
+  # It sets DEV_IMAGE and FILE_TYPE
+  get_block_device ${IMG_PATH}
+
+  local MOUNT_POINT=$(mktemp -d --suffix=.img-tool)
 
   # what king this image: raspbian, armbian
   # filesystem / architecture
@@ -160,7 +179,11 @@ mount_image() {
 
   my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
   travis_retry umount -fl ${MOUNT_POINT}
-  losetup -d ${DEV_IMAGE}
+  rmdir ${MOUNT_POINT}
+
+  if [[ ${FILE_TYPE} == "file" ]]; then
+    losetup -d ${DEV_IMAGE}
+  fi
 
   exit ${RET}
 }
