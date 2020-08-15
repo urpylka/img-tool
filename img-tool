@@ -301,7 +301,7 @@ size() {
   NEW_IMG_SIZE=${2}
 
   [ -e $IMG_PATH ] || (my_echo "The file path doesn't exist!" "RED"; exit 1)
-  [ -f $IMG_PATH ] || (my_echo "The file path isn't a file! Now `size` utility doesn't support working with devices." "RED"; exit 1)
+  [ -f $IMG_PATH ] || (my_echo "The file path isn't a file! Now 'size' utility doesn't support working with devices." "RED"; exit 1)
 
   # TODO: Check OS and current software
   # For example check macOS
