@@ -30,7 +30,7 @@ my_echo() {
   # TEXT="$(date '+[%Y-%m-%d %H:%M:%S]') ${TEXT}"
   TEXT="\e[1m${TEXT}\e[0m" # BOLD
 
-  case "$2" in
+  case "${2}" in
     GREEN)
     TEXT="\e[32m${TEXT}\e[0m";; # GREEN
     RED)
@@ -41,7 +41,7 @@ my_echo() {
 
   # TEXT="\a${TEXT}" # SOUND
 
-  if [ ! -z $3 ]; then
+  if [ ! -z ${3} ]; then
     echo -ne ${TEXT}
   else
     echo -e ${TEXT}
@@ -72,7 +72,7 @@ travis_retry() {
 }
 
 get_info() {
-  local IMG_PATH=$1
+  local IMG_PATH=${1}
   local FDISK=$(fdisk -l ${IMG_PATH} || (my_echo "fdisk error" "RED"; exit 1;))
 
   DISK_ID=$(echo -e "${FDISK}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
@@ -102,7 +102,7 @@ get_block_device() {
   # <FUNCTION> <IMG_PATH> <DEV_IMAGE> <FILE_TYPE> [...]
   # It is waiting RET code from <FUNCTION>
 
-  local IMG_PATH=$1
+  local IMG_PATH=${1}
 
   # what is IMG_PATH
   case `file ${IMG_PATH} | awk -F ': ' '{print $2}'` in
@@ -190,9 +190,9 @@ mount_image() {
 
 fix_partuuid() {
     # TEMPLATE: fix_partuuid <MOUNT_POINT> <IMAGE_PATH> <OLD_DISKID>
-    local MOUNT_POINT=$1
-    local IMAGE_PATH=$2
-    local OLD_DISKID=$3
+    local MOUNT_POINT=${1}
+    local IMAGE_PATH=${2}
+    local OLD_DISKID=${3}
 
     # https://github.com/RPi-Distro/raspi-config/blob/master/init_resize.sh
     local DISKID="$(fdisk -l "${IMAGE_PATH}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')"
@@ -250,7 +250,7 @@ add_settings() {
 exec() {
   # TEMPLATE: exec <MOUNT_POINT> <EXECUTE_FILE> [...]
 
-  local MOUNT_POINT=$1
+  local MOUNT_POINT=${1}
   add_settings ${MOUNT_POINT}
 
   local RET=0
@@ -258,10 +258,10 @@ exec() {
   mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
 
   if [[ $# > 1 ]]; then
-    local SCRIPT_NAME="$(basename $2).$(tr -dc 'A-F0-9' < /dev/urandom | dd bs=1 count=7 2>/dev/null)"
+    local SCRIPT_NAME="$(basename ${2}).$(tr -dc 'A-F0-9' < /dev/urandom | dd bs=1 count=7 2>/dev/null)"
     local SCRIPT_PATH="/root/${SCRIPT_NAME}"
 
-    cp "$2" "${MOUNT_POINT}/${SCRIPT_PATH}"
+    cp "${2}" "${MOUNT_POINT}/${SCRIPT_PATH}"
     my_echo "Running the script" "BLUE"
     chroot ${MOUNT_POINT} /bin/sh -c "${SCRIPT_PATH} ${@:3}" || RET=1
     rm "${MOUNT_POINT}/${SCRIPT_PATH}"
@@ -284,21 +284,21 @@ exec() {
 copy() {
   # TEMPLATE: copy <MOUNT_POINT> <MOVE_FILE> <MOVE_TO>
 
-  local MOUNT_POINT=$1
+  local MOUNT_POINT=${1}
 
-  local dir_name=$(dirname "${MOUNT_POINT}$3 /")
+  local dir_name=$(dirname "${MOUNT_POINT}${3} /")
 
   [[ ! -d ${dir_name} ]] && mkdir -p ${dir_name} \
   && my_echo "Created ${dir_name}" "GREEN"
 
-  cp -r "$2" "${MOUNT_POINT}$3"
+  cp -r "${2}" "${MOUNT_POINT}${3}"
 }
 
 size() {
   # TEMPLATE: copy <IMG_PATH> <NEW_IMG_SIZE>
 
-  IMG_PATH=$1
-  NEW_IMG_SIZE=$2
+  IMG_PATH=${1}
+  NEW_IMG_SIZE=${2}
 
   [ -e $IMG_PATH ] || (my_echo "The file path doesn't exist!" "RED"; exit 1)
   [ -f $IMG_PATH ] || (my_echo "The file path isn't a file! Now `size` utility doesn't support working with devices." "RED"; exit 1)
@@ -430,7 +430,7 @@ if [ $(whoami) != "root" ]; then
 fi
 
 get_version() {
-  echo -en "$1: " && apt show $1 2>&1 | grep Version | gawk -F ': ' '{print $2}'
+  echo -en "${1}: " && apt show ${1} 2>&1 | grep Version | gawk -F ': ' '{print $2}'
 }
 
 help() {
@@ -457,16 +457,16 @@ echo "==========================================================================
 
 if [[ $# > 0 ]]; then
 
-  [[ -e $1 ]] || (my_echo "$1 does not exist" "RED"; help; exit 1)
+  [[ -e ${1} ]] || (my_echo "${1} does not exist" "RED"; help; exit 1)
 
-  if [[ -z $2 ]]; then help; else
-    case "$2" in
+  if [[ -z ${2} ]]; then help; else
+    case "${2}" in
       exec)
-        mount_image $1 exec $3 ${@:4};;
+        mount_image ${1} exec ${@:3};;
       copy)
-        mount_image $1 copy $3 $4;;
+        mount_image ${1} copy ${3} ${4};;
       size)
-        size $1 $3;;
+        size ${1} ${3};;
       *)
         help;;
     esac
