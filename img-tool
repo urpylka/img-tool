@@ -73,14 +73,14 @@ travis_retry() {
 
 get_info() {
   local IMG_PATH=${1}
-  local FDISK=$(fdisk -l ${IMG_PATH} || (my_echo "fdisk error" "RED"; exit 1;))
+  local FDISK=$(fdisk -l ${IMG_PATH} || (my_echo "fdisk error" "RED"; loout; exit 1))
 
   DISK_ID=$(echo -e "${FDISK}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
   local PARTS=$(echo -e "${FDISK}" | awk 'FNR>8')
   PARTS_COUNT=$(echo -e "${PARTS}" | wc -l)
 
   if [[ "${PARTS_COUNT}" != 1 && "${PARTS_COUNT}" != 2 ]] ; then
-    my_echo "Image is incorrect" "RED"; exit 1;
+    my_echo "Image is incorrect" "RED"; loout; exit 1;
   fi
 
   local PART1=$(echo -e "${PARTS}" | awk 'FNR==1')
@@ -107,7 +107,11 @@ get_block_device() {
   # what is IMG_PATH
   case `file ${IMG_PATH} | awk -F ': ' '{print $2}'` in
     block\ special*)
-      FILE_TYPE=block
+      if [[ ${FILE_TYPE} != "file" ]]; then
+        # It condition is needed by call mount_image() from size(),
+        # Double call get_block_device (when first time FILE_TYPE=file, next time = block)
+        FILE_TYPE=block
+      fi
       DEV_IMAGE=${IMG_PATH};;
 
     DOS/MBR\ boot\ sector*)
@@ -145,7 +149,7 @@ mount_image() {
 
   case ${PARTS_COUNT} in
     1)
-      my_echo "One partition temporary doesn't support" "RED"; exit 1
+      my_echo "One partition temporary doesn't support" "RED"; loout; exit 1
       ;;
     2)
       if [[ ${PART1_TYPE} == "W95" && ${PART2_TYPE} == "Linux" ]]; then
@@ -161,11 +165,11 @@ mount_image() {
 
         local IMG_TYPE="Raspbian"
       else
-        my_echo "Incorrect scheme of partitions" "RED"; exit 1
+        my_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
       fi
       ;;
     *)
-      my_echo "Incorrect scheme of partitions" "RED"; exit 1
+      my_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
       ;;
   esac
 
@@ -181,11 +185,8 @@ mount_image() {
   travis_retry umount -fl ${MOUNT_POINT}
   rmdir ${MOUNT_POINT}
 
-  if [[ ${FILE_TYPE} == "file" ]]; then
-    losetup -d ${DEV_IMAGE}
-  fi
-
-  exit ${RET}
+  loout
+  return ${RET}
 }
 
 fix_partuuid() {
@@ -300,27 +301,29 @@ size() {
   IMG_PATH=${1}
   NEW_IMG_SIZE=${2}
 
-  [ -e ${IMG_PATH} ] || (my_echo "The file path doesn't exist!" "RED"; exit 1)
-  [ -f ${IMG_PATH} ] || (my_echo "The file path isn't a file! Now 'size' utility doesn't support working with devices." "RED"; exit 1)
+  # It sets DEV_IMAGE and FILE_TYPE
+  get_block_device ${IMG_PATH}
 
   # TODO: Check OS and current software
   # For example check macOS
 
-  FDISK_INFO=$(fdisk -l ${IMG_PATH}) && echo -e "${FDISK_INFO}"
+  FDISK_INFO=$(fdisk -l ${DEV_IMAGE}) && echo -e "${FDISK_INFO}\n"
   # https://raspberrypi.stackexchange.com/questions/13137/how-can-i-mount-a-raspberry-pi-linux-distro-image
   # Or we can use: "parted -m ${IMG_PATH} unit B print free", but it have not DISKID
   # https://ru.wikipedia.org/wiki/Разрежённый_файл
 
   CUR_DISKID=$(echo -e "${FDISK_INFO}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+  DEV_SIZE=$(echo -e "${FDISK_INFO}" | awk -F ', ' '{print $2}' | awk '{print $1}')
 
-  LINUX_PART=$(echo -e "${FDISK_INFO}" | tail -1 | grep Linux)
-  [[ -z ${LINUX_PART} ]] && (my_echo "Linux partition is not at the end!" "RED"; exit 1)
+  LINUX_PART=$(echo -e "${FDISK_INFO}" | tail -1 | grep "Linux") \
+  || (my_echo "Linux partition doesn't exist or isn't at the end!" "RED"; loout; exit 1)
+
   LINUX_PART_START=$(($(echo ${LINUX_PART} | awk -F' ' '{ print $2 }') * 512))
   LINUX_PART_END=$(($(echo ${LINUX_PART} | awk -F' ' '{ print $3 }') * 512))
 
   # Можно делать луп на 2ю партицию просто используя "${LOOPBACK}p2",
   # но тут проверочки и другие полезные данные
-  LOOPBACK=`losetup -f` && losetup ${LOOPBACK} -o "${LINUX_PART_START}" "${IMG_PATH}"
+  LOOPBACK=`losetup -f` && losetup ${LOOPBACK} -o "${LINUX_PART_START}" "${DEV_IMAGE}"
   # https://www.stableit.ru/2011/05/losetup.html
   # -f     : losetup сам выбрал loop (минуя занятые) - отказался чтобы образ был размещен,
   # только на определенном раньше LOOPBACK (--show работает не везде)
@@ -333,17 +336,24 @@ size() {
   # Change image size to 512B diveded size
   # https://stackoverflow.com/questions/26540693/how-do-i-read-write-a-block-device
 
-  e2fsck -fy -v ${LOOPBACK} &> /dev/null || (my_echo "e2fsck changed the image. Maybe he is broken. Try again." "RED"; exit 1;)
+  e2fsck -fy -v ${LOOPBACK} &> /dev/null || (my_echo "e2fsck has changed the image. Maybe he is broken. Try again." "RED"; losetup -d "${LOOPBACK}"; loout; exit 1;)
 
   local LINUX_PART_MIN_SIZE=$(( $(resize2fs -P ${LOOPBACK} 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
   losetup -d "${LOOPBACK}"
 
   local IMG_MIN_SIZE=$((${LINUX_PART_START} + ${LINUX_PART_MIN_SIZE} + 512))
-  local CUR_IMG_SIZE=$((${LINUX_PART_END} + 512))
-  local OBJ_IMG_SIZE=`du -sb ${IMG_PATH} | awk -F' ' '{ print $1 }'` # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
-
   echo "IMG_MIN_SIZE: ${IMG_MIN_SIZE}"
+  local CUR_IMG_SIZE=$((${LINUX_PART_END} + 512))
   echo "CUR_IMG_SIZE: ${CUR_IMG_SIZE}"
+
+
+  if [[ ${FILE_TYPE} == "file" ]]; then
+    local OBJ_IMG_SIZE=`du -sb ${IMG_PATH} | awk -F' ' '{ print $1 }'`
+    # https://prowebmastering.ru/linux-uznat-razmer-papok-i-failov-v-terminale.html
+  else if [[ ${FILE_TYPE} == "block" ]]; then
+    local OBJ_IMG_SIZE=${DEV_SIZE}
+    fi
+  fi
   echo "OBJ_IMG_SIZE: ${OBJ_IMG_SIZE}"
 
   if [[ -n ${NEW_IMG_SIZE} ]]; then
@@ -363,9 +373,18 @@ size() {
       # с учетом 4096-байтового сектора в LINUX_PART
       DIVREMAINDER2=$((${LINUX_PART_NEW_SIZE} % 4096))
       if [[ ${DIVREMAINDER2} -gt 0 ]]; then
-          my_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrect size. And NEW_IMG_SIZE (${NEW_IMG_SIZE}) too." "BLUE"
+          my_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrecting size.\nNEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
           LINUX_PART_NEW_SIZE=$((${LINUX_PART_NEW_SIZE} + 4096 - ${DIVREMAINDER2}))
           NEW_IMG_SIZE=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE} + 512))
+
+          if [[ ${FILE_TYPE} == "block" ]]; then
+            while [[ ${NEW_IMG_SIZE} -gt ${OBJ_IMG_SIZE} ]]; do
+            LINUX_PART_NEW_SIZE=$((${LINUX_PART_NEW_SIZE} - 4096))
+            NEW_IMG_SIZE=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE} + 512))
+            [[ ${LINUX_PART_NEW_SIZE} -lt ${LINUX_PART_MIN_SIZE} ]] && (my_echo "Can't make LINUX_PART_NEW_SIZE >= LINUX_PART_MIN_SIZE and NEW_IMG_SIZE <= OBJ_IMG_SIZE." "RED"; loout; exit 1)
+            done
+            my_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) has been reduce to fit in OBJ_IMG_SIZE (${OBJ_IMG_SIZE}).\nAnd NEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
+          fi
       fi
       LINUX_PART_NEW_END=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE}))
 
@@ -374,41 +393,57 @@ size() {
       echo "LINUX_PART_NEW_END: ${LINUX_PART_NEW_END}"
 
       # https://andreyex.ru/operacionnaya-sistema-linux/kak-sravnivat-chisla-v-bash
-      [[ ${NEW_IMG_SIZE} -lt ${IMG_MIN_SIZE} ]] && (my_echo "The image size cannot be less then ${IMG_MIN_SIZE}" "RED"; exit 1)
-      [[ ${NEW_IMG_SIZE} -eq ${CUR_IMG_SIZE} ]] && (my_echo "Nothing to do" "GREEN"; exit 1)
+      [[ ${NEW_IMG_SIZE} -lt ${IMG_MIN_SIZE} ]] && (my_echo "The image size cannot be less then ${IMG_MIN_SIZE}." "RED"; loout; exit 1)
+      [[ ${NEW_IMG_SIZE} -eq ${CUR_IMG_SIZE} ]] && (my_echo "Nothing to do." "GREEN"; loout; exit 1)
+      [[ ${NEW_IMG_SIZE} -gt ${OBJ_IMG_SIZE} ]] && [[ ${FILE_TYPE} == "block" ]] && (my_echo "We can't increase partition more than device size." "RED"; loout; exit 1)
 
       # https://blog.eaglenn.ru/izmenenie-razmera-razdela-ext2-ext3-ext4-bez-poteri-informatsii/
       if [[ ${NEW_IMG_SIZE} -lt ${CUR_IMG_SIZE} ]]; then
           echo "MIN"
 
-          LOOPBACK=$(losetup -f) && losetup -Pf ${IMG_PATH}
-          resize2fs ${LOOPBACK}p2 $((${LINUX_PART_NEW_SIZE} / 4096))
+          LOOPBACK=$(losetup -f) && losetup ${LOOPBACK} -o "${LINUX_PART_START}" "${DEV_IMAGE}"
+          resize2fs ${LOOPBACK} $((${LINUX_PART_NEW_SIZE} / 4096)) || losetup -d "${LOOPBACK}"
           # Можно добавить параметр "-p" для отслеживания того, что делает программа.
           # Больше о параметрах здесь: http://man7.org/linux/man-pages/man8/resize2fs.8.html
           # Последним параметром указывается размер раздела,
           # если параметр не указан, то раздел увеличивается до последнего сектора устройства.
 
           sleep 1
-          losetup -d ${LOOPBACK}
+          losetup -d "${LOOPBACK}"
 
-          parted ${IMG_PATH} rm 2
-          parted ${IMG_PATH} unit B mkpart primary ${LINUX_PART_START} ${LINUX_PART_NEW_END}
+          # Reopen DEV_IMAGE by get_block_device
+          loout; get_block_device ${IMG_PATH}
 
-          # https://linux.die.net/man/1/truncate
-          truncate -s $((${LINUX_PART_NEW_END} + 512)) ${IMG_PATH}
+          parted ${DEV_IMAGE} rm 2
+          parted ${DEV_IMAGE} unit B mkpart primary ${LINUX_PART_START} ${LINUX_PART_NEW_END}
+
+          if [[ ${FILE_TYPE} == "file" ]]; then
+            # https://linux.die.net/man/1/truncate
+            truncate -s $((${LINUX_PART_NEW_END} + 512)) ${IMG_PATH}
+          else
+            my_echo "We can't reduce device size. It will remain the same." "BLUE"
+          fi
+
       else
           echo "MAX"
 
-          truncate -s${NEW_IMG_SIZE} ${IMG_PATH}
+          if [[ ${FILE_TYPE} == "file" ]]; then
+            truncate -s${NEW_IMG_SIZE} ${IMG_PATH}
+          else
+            my_echo "We can't increase device size. It will remain the same." "BLUE"
+          fi
 
-          parted ${IMG_PATH} rm 2
-          parted ${IMG_PATH} unit B mkpart primary ${LINUX_PART_START} ${LINUX_PART_NEW_END}
+          # Reopen DEV_IMAGE by get_block_device
+          loout; get_block_device ${IMG_PATH}
 
-          LOOPBACK=$(losetup -f) && losetup -Pf ${IMG_PATH}
+          parted ${DEV_IMAGE} rm 2
+          parted ${DEV_IMAGE} unit B mkpart primary ${LINUX_PART_START} ${LINUX_PART_NEW_END}
 
-          resize2fs ${LOOPBACK}p2 $((${LINUX_PART_NEW_SIZE} / 4096))
+          LOOPBACK=$(losetup -f) && losetup ${LOOPBACK} -o "${LINUX_PART_START}" "${DEV_IMAGE}"
+
+          resize2fs ${LOOPBACK} $((${LINUX_PART_NEW_SIZE} / 4096)) || losetup -d "${LOOPBACK}"
           sleep 1
-          losetup -d ${LOOPBACK}
+          losetup -d "${LOOPBACK}"
       fi
 
       # More information
@@ -416,8 +451,17 @@ size() {
       parted -m ${IMG_PATH} unit B print free
       echo "================================================================================"
 
-      mount_image ${IMG_PATH} fix_partuuid ${IMG_PATH} ${CUR_DISKID}
+      mount_image ${DEV_IMAGE} fix_partuuid ${IMG_PATH} ${CUR_DISKID} || true # otherwise doesn't work loout
   fi
+
+  loout
+}
+
+loout() {
+  # Close DEV_IMAGE opened from get_block_device
+  [[ ${FILE_TYPE} == "file" ]] && losetup -d ${DEV_IMAGE} 2>/dev/null || true
+  # 2>/dev/null || true needs for multiple calls this function
+  return 0
 }
 
 if [ $(whoami) != "root" ]; then
