@@ -14,11 +14,11 @@ For easy using the docker image you need to make alias:
 alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.5 img-tool'
 ```
 
-* You can add this command to `~/.bash_profile` to make it permanent.
-* For work you need to mount directory from root system to docker container `-v $(pwd):/mnt`. After that `IMG_PATH`, `SCRIPT`, `MOVE_FILES` will have been used from this directory. But `IMG_PATH` can be a block device (like your USB flash drive). For that you need to mount host device `-v /dev/disk1:/dev/disk1` It didn't work at `macOS` because that docker used Hyperkit ([who can't work with USB devices](https://github.com/moby/hyperkit/issues/149)).
-* Also you need to mount `/dev` directory and use `--privileged` for work with this docker image.
+* You can add this command to `~/.bash_profile` or `~/.bashrc` to make it permanent.
+* For work you need to mount directory from root system to docker container `-v $(pwd):/mnt`. After that `IMG_PATH`, `SCRIPT`, `MOVE_FILES` will have been used from this directory. But `IMG_PATH` can be a block device (like your USB flash drive). For that you need to mount host device `-v /dev/disk1:/dev/disk1` It didn't work at `macOS`, because that docker used Hyperkit ([who can't work with USB devices](https://github.com/moby/hyperkit/issues/149)).
+* Also you need to use `--privileged` flag for work with this docker image. (Why we need `--privileged` flag? Seems it needs for chrooting and losetup cannot be working with `/dev/loop*`).
 
-Docker image consist **img-tool** script. It can be used for:
+The docker image consists **img-tool** script. It can be used for:
 
 1. Executing something in the images
 
@@ -54,7 +54,7 @@ Docker image consist **img-tool** script. It can be used for:
 docker build -t img-tool:local .
 
 # Alias for ease using
-alias img-tool='docker run --privileged -it --rm -v /dev:/dev -v $(pwd):/mnt img-tool:local img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt img-tool:local img-tool'
 ```
 
 ### Requirements in the Docker image
