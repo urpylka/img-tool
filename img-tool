@@ -2,7 +2,11 @@
 
 #
 # img-tool – script for executing commands in file-image,
-# coping files, managing free space in the OS-image
+# coping files, loading zip-images, managing free space in the OS-image
+#
+# It also consists requirement functions for the image building scripts:
+# get_repo_ver, get_repo_url, get_repo_name, rich_echo, travis_retry.
+# Just source this file.
 #
 # Copyright 2018-2020 Artem Smirnov urpylka@gmail.com
 #
@@ -18,10 +22,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e # Exit immidiately on non-zero result
+get_repo_ver() {
+  # TEMPLATE: get_repo_ver <REPO_PATH>
+  # If TRAVIS_TAG is not setted it will take the tag from git
+  echo ${TRAVIS_TAG:=$(cd ${1} && git log --format=%h -1)}
+}
 
-my_echo() {
-  # TEMPLATE: my_echo <TEXT> <COLOR> <MOVE_CARRIER>
+get_repo_url() {
+  # TEMPLATE: get_repo_url <REPO_PATH>
+  echo $(cd ${1} && git remote -v | grep origin | grep fetch | cut -f2 | cut -d' ' -f1 | sed 's/git@github\.com\:/https\:\/\/github.com\//')
+}
+
+get_repo_name() {
+  # TEMPLATE: get_repo_name <REPO_PATH>
+  echo $(basename -s '.git' $(get_repo_url ${1}))
+}
+
+rich_echo() {
+  # TEMPLATE: rich_echo <TEXT> <COLOR> <MOVE_CARRIER>
   # COLOR: GREEN, RED, BLUE
 
   # More info there https://www.shellhacks.com/ru/bash-colors/
@@ -71,16 +89,18 @@ travis_retry() {
   return $result
 }
 
+set -e # Exit immidiately on non-zero result
+
 get_info() {
   local IMG_PATH=${1}
-  local FDISK=$(fdisk -l ${IMG_PATH} || (my_echo "fdisk error" "RED"; loout; exit 1))
+  local FDISK=$(fdisk -l ${IMG_PATH} || (rich_echo "fdisk error" "RED"; loout; exit 1))
 
   DISK_ID=$(echo -e "${FDISK}" | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
   local PARTS=$(echo -e "${FDISK}" | awk 'FNR>8')
   PARTS_COUNT=$(echo -e "${PARTS}" | wc -l)
 
   if [[ "${PARTS_COUNT}" != 1 && "${PARTS_COUNT}" != 2 ]] ; then
-    my_echo "Image is incorrect" "RED"; loout; exit 1;
+    rich_echo "Image is incorrect" "RED"; loout; exit 1;
   fi
 
   local PART1=$(echo -e "${PARTS}" | awk 'FNR==1')
@@ -117,11 +137,11 @@ get_block_device() {
     DOS/MBR\ boot\ sector*)
       FILE_TYPE=file
       DEV_IMAGE=$(losetup -f)
-      losetup ${DEV_IMAGE} ${IMG_PATH} || (my_echo "losetup error" "RED"; exit 1;)
+      losetup ${DEV_IMAGE} ${IMG_PATH} || (rich_echo "losetup error" "RED"; exit 1;)
       sleep 0.5;;
 
     *)
-      my_echo "IMG_PATH incorrect" "RED"; exit 1;;
+      rich_echo "IMG_PATH incorrect" "RED"; exit 1;;
   esac
 
   # I had wanted to make wrapper
@@ -149,7 +169,7 @@ mount_image() {
 
   case ${PARTS_COUNT} in
     1)
-      my_echo "One partition temporary doesn't support" "RED"; loout; exit 1
+      rich_echo "One partition temporary doesn't support" "RED"; loout; exit 1
       ;;
     2)
       if [[ ${PART1_TYPE} == "W95" && ${PART2_TYPE} == "Linux" ]]; then
@@ -165,23 +185,23 @@ mount_image() {
 
         local IMG_TYPE="Raspbian"
       else
-        my_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
+        rich_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
       fi
       ;;
     *)
-      my_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
+      rich_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
       ;;
   esac
 
   if [[ -z ${2} ]]; then
-    my_echo "The function isn't setted" "RED"
+    rich_echo "The function isn't setted" "RED"
     local RET=1
   else
     ${2} ${MOUNT_POINT} ${@:3}
     local RET=$?
   fi
 
-  my_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
+  rich_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
   travis_retry umount -fl ${MOUNT_POINT}
   rmdir ${MOUNT_POINT}
 
@@ -211,41 +231,69 @@ add_settings() {
 
   local REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
   if [[ $(arch) != 'armv7l' ]]; then
-    my_echo "Enable qemu-arm-static"
+    rich_echo "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
     echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
     cp '/usr/share/qemu-wrapper' "${MOUNT_POINT}/usr/bin/qemu-wrapper"
     cp '/usr/share/qemu-arm-static' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
-  else my_echo "qemu-arm-static is not need"
+  else rich_echo "qemu-arm-static is not need"
   fi
 
-  my_echo "Bind system dirs"
+  rich_echo "Bind system dirs"
 
-  my_echo "Mounting /proc in chroot... " "BLUE" 1
+  rich_echo "Mounting /proc in chroot... " "BLUE" 1
   if [ ! -d ${MOUNT_POINT}/proc ]; then
     mkdir -p ${MOUNT_POINT}/proc; fi
   mount -t proc -o nosuid,noexec,nodev proc ${MOUNT_POINT}/proc \
-  && my_echo "OK" "GREEN" \
-  || (my_echo "Failed" "RED"; exit 1)
+  && rich_echo "OK" "GREEN" \
+  || (rich_echo "Failed" "RED"; exit 1)
 
-  my_echo "Mounting /sys in chroot... " "BLUE" 1
+  rich_echo "Mounting /sys in chroot... " "BLUE" 1
   if [ ! -d ${MOUNT_POINT}/sys ]; then
     mkdir -p ${MOUNT_POINT}/sys; fi
   mount -t sysfs -o nosuid,noexec,nodev sysfs ${MOUNT_POINT}/sys \
-  && my_echo "OK" "GREEN" \
-  || (my_echo "Failed" "RED"; exit 1)
+  && rich_echo "OK" "GREEN" \
+  || (rich_echo "Failed" "RED"; exit 1)
 
-  my_echo "Mounting /dev/ and /dev/pts in chroot... " "BLUE" 1 \
+  rich_echo "Mounting /dev/ and /dev/pts in chroot... " "BLUE" 1 \
   && mkdir -p -m 755 ${MOUNT_POINT}/dev/pts \
   && mount -t devtmpfs -o mode=0755,nosuid devtmpfs ${MOUNT_POINT}/dev \
   && mount -t devpts -o gid=5,mode=620 devpts ${MOUNT_POINT}/dev/pts \
-  && my_echo "OK" "GREEN" \
-  || (my_echo "Failed" "RED"; exit 1)
+  && rich_echo "OK" "GREEN" \
+  || (rich_echo "Failed" "RED"; exit 1)
 
-  my_echo "Copy DNS records "  "BLUE" 1 \
+  rich_echo "Copy DNS records "  "BLUE" 1 \
   && cp -L /etc/resolv.conf ${MOUNT_POINT}/etc/resolv.conf \
-  && my_echo "OK" "GREEN" \
-  || (my_echo "Failed" "RED"; exit 1)
+  && rich_echo "OK" "GREEN" \
+  || (rich_echo "Failed" "RED"; exit 1)
+}
+
+load() {
+  # This func downloads & unzip zip-image
+  # TEMPLATE: load <IMG_PATH> <RPI_ZIP_URL>
+  local IMG_PATH=$1
+  local RPI_ZIP_URL=$2
+  local IMG_DIR=$(dirname $1)
+  local RPI_ZIP_NAME=$(basename $2)
+  local RPI_IMAGE_NAME=$(echo ${RPI_ZIP_NAME} | sed 's/zip/img/')
+
+  curl -I ${RPI_ZIP_URL} 2>/dev/null | grep "content-type: application/zip" 1>/dev/null \
+  || (rich_echo "RPI_ZIP_URL is broken or it is not a zip file." "RED"; exit 1)
+
+  if [ ! -e "${IMG_DIR}/${RPI_ZIP_NAME}" ]; then
+    rich_echo "Downloading original Linux distribution. It may take a while." "BLUE" 1 \
+    && echo; curl -o ${IMG_DIR}/${RPI_ZIP_NAME} ${RPI_ZIP_URL} \
+    && rich_echo "Completed" "GREEN" \
+    || (rich_echo "Failed!" "RED"; exit 1)
+  else rich_echo "Linux distribution already donwloaded" "GREEN"; fi
+
+  rich_echo "Unzipping Linux distribution image" "BLUE" \
+  && unzip -p ${IMG_DIR}/${RPI_ZIP_NAME} ${RPI_IMAGE_NAME} > ${IMG_PATH} \
+  && rich_echo "Unzipping completed" "GREEN" \
+  || (
+    rich_echo "Unzipping failed!" "RED";
+    rm ${IMG_DIR}/${RPI_ZIP_NAME} && rich_echo "Zip-file was removed" "RED";
+    exit 1)
 }
 
 exec() {
@@ -263,7 +311,7 @@ exec() {
     local SCRIPT_PATH="/root/${SCRIPT_NAME}"
 
     cp "${2}" "${MOUNT_POINT}/${SCRIPT_PATH}"
-    my_echo "Running the script" "BLUE"
+    rich_echo "Running the script" "BLUE"
     chroot ${MOUNT_POINT} /bin/sh -c "${SCRIPT_PATH} ${@:3}" || RET=1
     rm "${MOUNT_POINT}/${SCRIPT_PATH}"
   else
@@ -273,7 +321,7 @@ exec() {
     # https://losst.ru/vosstanovlenie-grub2
     # http://unixteam.ru/content/virtualizaciya-ili-zapuskaem-prilozhenie-v-chroot-okruzhenii-razmyshleniya
     # http://help.ubuntu.ru/wiki/%D0%B2%D0%BE%D1%81%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_grub
-    my_echo "Entering the chroot" "BLUE" \
+    rich_echo "Entering the chroot" "BLUE" \
     && chroot ${MOUNT_POINT} /bin/bash
   fi
 
@@ -290,7 +338,7 @@ copy() {
   local dir_name=$(dirname "${MOUNT_POINT}${3} /")
 
   [[ ! -d ${dir_name} ]] && mkdir -p ${dir_name} \
-  && my_echo "Created ${dir_name}" "GREEN"
+  && rich_echo "Created ${dir_name}" "GREEN"
 
   cp -r "${2}" "${MOUNT_POINT}${3}"
 }
@@ -316,7 +364,7 @@ size() {
   DEV_SIZE=$(echo -e "${FDISK_INFO}" | awk -F ', ' '{print $2}' | awk '{print $1}')
 
   LINUX_PART=$(echo -e "${FDISK_INFO}" | tail -1 | grep "Linux") \
-  || (my_echo "Linux partition doesn't exist or isn't at the end!" "RED"; loout; exit 1)
+  || (rich_echo "Linux partition doesn't exist or isn't at the end!" "RED"; loout; exit 1)
 
   LINUX_PART_START=$(($(echo ${LINUX_PART} | awk -F' ' '{ print $2 }') * 512))
   LINUX_PART_END=$(($(echo ${LINUX_PART} | awk -F' ' '{ print $3 }') * 512))
@@ -336,7 +384,7 @@ size() {
   # Change image size to 512B diveded size
   # https://stackoverflow.com/questions/26540693/how-do-i-read-write-a-block-device
 
-  e2fsck -fy -v ${LOOPBACK} &> /dev/null || (my_echo "e2fsck has changed the image. Maybe he is broken. Try again." "RED"; losetup -d "${LOOPBACK}"; loout; exit 1;)
+  e2fsck -fy -v ${LOOPBACK} &> /dev/null || (rich_echo "e2fsck has changed the image. Maybe he is broken. Try again." "RED"; losetup -d "${LOOPBACK}"; loout; exit 1;)
 
   local LINUX_PART_MIN_SIZE=$(( $(resize2fs -P ${LOOPBACK} 2> /dev/null | awk -F': ' '{ print $2 }') * 4096 ))
   losetup -d "${LOOPBACK}"
@@ -361,7 +409,7 @@ size() {
       # losetup: os.img: Warning: file does not fit into a 512-byte sector; the end of the file will be ignored.
       DIVREMAINDER=$((${NEW_IMG_SIZE} % 512))
       if [[ ${DIVREMAINDER} -gt 0 ]]; then
-          my_echo "The NEW_IMG_SIZE (${NEW_IMG_SIZE}) does not fit in 512-byte sector (logic of losetup utility), autocorrect size." "BLUE"
+          rich_echo "The NEW_IMG_SIZE (${NEW_IMG_SIZE}) does not fit in 512-byte sector (logic of losetup utility), autocorrect size." "BLUE"
           NEW_IMG_SIZE=$((${NEW_IMG_SIZE} + 512 - ${DIVREMAINDER}))
       fi
 
@@ -373,7 +421,7 @@ size() {
       # с учетом 4096-байтового сектора в LINUX_PART
       DIVREMAINDER2=$((${LINUX_PART_NEW_SIZE} % 4096))
       if [[ ${DIVREMAINDER2} -gt 0 ]]; then
-          my_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrecting size.\nNEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
+          rich_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) does not fit in 4096-byte sector (logic of resize2fs utility), autocorrecting size.\nNEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
           LINUX_PART_NEW_SIZE=$((${LINUX_PART_NEW_SIZE} + 4096 - ${DIVREMAINDER2}))
           NEW_IMG_SIZE=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE} + 512))
 
@@ -381,9 +429,9 @@ size() {
             while [[ ${NEW_IMG_SIZE} -gt ${OBJ_IMG_SIZE} ]]; do
             LINUX_PART_NEW_SIZE=$((${LINUX_PART_NEW_SIZE} - 4096))
             NEW_IMG_SIZE=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE} + 512))
-            [[ ${LINUX_PART_NEW_SIZE} -lt ${LINUX_PART_MIN_SIZE} ]] && (my_echo "Can't make LINUX_PART_NEW_SIZE >= LINUX_PART_MIN_SIZE and NEW_IMG_SIZE <= OBJ_IMG_SIZE." "RED"; loout; exit 1)
+            [[ ${LINUX_PART_NEW_SIZE} -lt ${LINUX_PART_MIN_SIZE} ]] && (rich_echo "Can't make LINUX_PART_NEW_SIZE >= LINUX_PART_MIN_SIZE and NEW_IMG_SIZE <= OBJ_IMG_SIZE." "RED"; loout; exit 1)
             done
-            my_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) has been reduce to fit in OBJ_IMG_SIZE (${OBJ_IMG_SIZE}).\nAnd NEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
+            rich_echo "The LINUX_PART_NEW_SIZE (${LINUX_PART_NEW_SIZE}) has been reduce to fit in OBJ_IMG_SIZE (${OBJ_IMG_SIZE}).\nAnd NEW_IMG_SIZE (${NEW_IMG_SIZE})." "BLUE"
           fi
       fi
       LINUX_PART_NEW_END=$((${LINUX_PART_START} + ${LINUX_PART_NEW_SIZE}))
@@ -393,9 +441,9 @@ size() {
       echo "LINUX_PART_NEW_END: ${LINUX_PART_NEW_END}"
 
       # https://andreyex.ru/operacionnaya-sistema-linux/kak-sravnivat-chisla-v-bash
-      [[ ${NEW_IMG_SIZE} -lt ${IMG_MIN_SIZE} ]] && (my_echo "The image size cannot be less then ${IMG_MIN_SIZE}." "RED"; loout; exit 1)
-      [[ ${NEW_IMG_SIZE} -eq ${CUR_IMG_SIZE} ]] && (my_echo "Nothing to do." "GREEN"; loout; exit 1)
-      [[ ${NEW_IMG_SIZE} -gt ${OBJ_IMG_SIZE} ]] && [[ ${FILE_TYPE} == "block" ]] && (my_echo "We can't increase partition more than device size." "RED"; loout; exit 1)
+      [[ ${NEW_IMG_SIZE} -lt ${IMG_MIN_SIZE} ]] && (rich_echo "The image size cannot be less then ${IMG_MIN_SIZE}." "RED"; loout; exit 1)
+      [[ ${NEW_IMG_SIZE} -eq ${CUR_IMG_SIZE} ]] && (rich_echo "Nothing to do." "GREEN"; loout; exit 1)
+      [[ ${NEW_IMG_SIZE} -gt ${OBJ_IMG_SIZE} ]] && [[ ${FILE_TYPE} == "block" ]] && (rich_echo "We can't increase partition more than device size." "RED"; loout; exit 1)
 
       # https://blog.eaglenn.ru/izmenenie-razmera-razdela-ext2-ext3-ext4-bez-poteri-informatsii/
       if [[ ${NEW_IMG_SIZE} -lt ${CUR_IMG_SIZE} ]]; then
@@ -421,7 +469,7 @@ size() {
             # https://linux.die.net/man/1/truncate
             truncate -s $((${LINUX_PART_NEW_END} + 512)) ${IMG_PATH}
           else
-            my_echo "We can't reduce device size. It will remain the same." "BLUE"
+            rich_echo "We can't reduce device size. It will remain the same." "BLUE"
           fi
 
       else
@@ -430,7 +478,7 @@ size() {
           if [[ ${FILE_TYPE} == "file" ]]; then
             truncate -s${NEW_IMG_SIZE} ${IMG_PATH}
           else
-            my_echo "We can't increase device size. It will remain the same." "BLUE"
+            rich_echo "We can't increase device size. It will remain the same." "BLUE"
           fi
 
           # Reopen DEV_IMAGE by get_block_device
@@ -478,14 +526,23 @@ get_version() {
 }
 
 help() {
-  my_echo "Use:" "BLUE"
+  echo "=========================================="
+  rich_echo "img-tool (version 0.6)" "BLUE"
+  echo "=========================================="
   echo "img-tool <IMAGE> exec [ <SCRIPT> [...] ]"
   # TODO: Add ability executing commands from stdin
   echo "img-tool <IMAGE> copy <MOVE_FILE> <MOVE_TO>"
   echo "img-tool <IMAGE> size [ <NEW_SIZE> ]"
   echo "To minimize image:"
   echo "img-tool <IMAGE> size \$(img-tool <IMAGE> size | head -1 | cut -b 15-)"
-  my_echo "Dependencies versions:"  "BLUE"
+  echo "img-tool <IMAGE> load <RPI_ZIP_URL>"
+  echo "=========================================="
+  rich_echo "Additional functions:" "BLUE"
+  echo "get_repo_ver, get_repo_url, get_repo_name, rich_echo, travis_retry"
+  rich_echo "Just source it: source img-tool"
+  echo "=========================================="
+  rich_echo "Dependencies versions:"  "BLUE"
+  echo "=========================================="
   get_version util-linux
   echo "losetup is using from util-linux"
   fsck
@@ -493,15 +550,16 @@ help() {
   chroot --version | head -n1
   resize2fs 2>&1 | head -n1
   get_version parted
+  get_version curl
 }
-
-echo "================================================================================"
-for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
-echo "================================================================================"
 
 if [[ $# > 0 ]]; then
 
-  [[ -e ${1} ]] || (my_echo "${1} does not exist" "RED"; help; exit 1)
+  echo "================================================================================"
+  for ((i=0; i<=$#; i++)); do echo "\$$i: ${!i}"; done
+  echo "================================================================================"
+
+  [[ -e ${1} ]] || ([[ ${2} == "load" ]] || (rich_echo "${1} does not exist" "RED"; help; exit 1))
 
   if [[ -z ${2} ]]; then help; else
     case "${2}" in
@@ -511,9 +569,12 @@ if [[ $# > 0 ]]; then
         mount_image ${1} copy ${3} ${4};;
       size)
         size ${1} ${3};;
+      load)
+        load ${1} ${3};;
       *)
         help;;
     esac
   fi
-else help
+else
+  [[ $0 != "/bin/bash" ]] && help || return 0
 fi

@@ -1,17 +1,19 @@
 # img-tool
 
-Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Ubuntu, macOS & etc.
+Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Linux, macOS & etc.
 
-Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc. Project used in [COEX CLEVER](https://github.com/copterexpress/clever).
+1. Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc.
 
-All plans of development you can find at [Github Projects](https://github.com/urpylka/img-tool/projects/1).
+2. All plans of development you can find at [Github Projects](https://github.com/urpylka/img-tool/projects/1).
 
-## API v0.5
+3. You can use it manualy or by scripts (example of using at [`img-builder`](https://github.com/urpylka/img-builder) project). Also this project is using in [COEX CLOVER](https://github.com/copterexpress/clover).
+
+## API v0.6
 
 For easy using the docker image you need to make alias:
 
 ```bash
-alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.5 img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.6 img-tool'
 ```
 
 * You can add this command to `~/.bash_profile` or `~/.bashrc` to make it permanent.
@@ -48,6 +50,16 @@ The docker image consists **img-tool** script. It can be used for:
     img-tool <IMG_PATH> size $(img-tool <IMG_PATH> size | head -1 | cut -b 15-)
     ```
 
+4. The script also consists additional functions who is needed for builds: `get_repo_ver`, `get_repo_url`, `get_repo_name`, `rich_echo`, `travis_retry`.
+
+    For use it, source it (inside the container):
+
+    ```bash
+    source img-tool
+    ```
+
+    > You can see how it works at [`img-builder`](https://github.com/urpylka/img-builder) project.
+
 ## Build own version
 
 ```bash
@@ -67,6 +79,7 @@ util-linux=2.33.1-0.1 | losetup, fdisk, fsck
 truncate | (GNU coreutils) 8.30
 chroot | (GNU coreutils) 8.30
 resize2fs | 1.44.5 (15-Dec-2018)
+curl | 7.64.0
 
 ## License
 

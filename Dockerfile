@@ -25,7 +25,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     git \
     file \
-    unzip wget \
+    unzip \
+    curl \
     parted gawk lsof udev \
     apt-utils ca-certificates \
     gcc libc-dev libcap2-bin \
