@@ -24,7 +24,7 @@
 
 get_repo_ver() {
   # TEMPLATE: get_repo_ver <REPO_PATH>
-  # If TRAVIS_TAG is not setted it will take the tag from git
+  # If TRAVIS_TAG is not set it will take the tag from git
   echo ${TRAVIS_TAG:=$(cd ${1} && git log --format=%h -1)}
 }
 
@@ -156,7 +156,11 @@ mount_image() {
   # mount_image is executing function from arguments
   # <FUNCTION> <MOUNT_POINT> [...]
 
-  local IMG_PATH=${1}
+  set -e
+
+  local IMG_PATH="${1}"
+  local FUNCTION="${2}"
+  local ARGS="${@:3}"
 
   # It sets DEV_IMAGE and FILE_TYPE
   get_block_device ${IMG_PATH}
@@ -193,12 +197,14 @@ mount_image() {
       ;;
   esac
 
-  if [[ -z ${2} ]]; then
-    rich_echo "The function isn't setted" "RED"
+  if [[ -z ${FUNCTION} ]]; then
+    rich_echo "The function isn't set" "RED"
     local RET=1
   else
-    ${2} ${MOUNT_POINT} ${@:3}
+    set +e
+    ${FUNCTION} ${MOUNT_POINT} ${ARGS}
     local RET=$?
+    set -e
   fi
 
   rich_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
@@ -206,6 +212,8 @@ mount_image() {
   rmdir ${MOUNT_POINT}
 
   loout
+
+  rich_echo "mount_image RET code: ${RET}" "BLUE"
   return ${RET}
 }
 
@@ -262,7 +270,7 @@ add_settings() {
   && rich_echo "OK" "GREEN" \
   || (rich_echo "Failed" "RED"; exit 1)
 
-  rich_echo "Copy DNS records "  "BLUE" 1 \
+  rich_echo "Copy DNS records... " "BLUE" 1 \
   && cp -L /etc/resolv.conf ${MOUNT_POINT}/etc/resolv.conf \
   && rich_echo "OK" "GREEN" \
   || (rich_echo "Failed" "RED"; exit 1)
@@ -271,10 +279,15 @@ add_settings() {
 load() {
   # This func downloads & unzip zip-image
   # TEMPLATE: load <IMG_PATH> <RPI_ZIP_URL>
+
+  [[ -z ${1} ]] && (echo "load: Wasn't set IMG_PATH"; exit 1)
+  [[ -z ${2} ]] && (echo "load: Wasn't set RPI_ZIP_URL"; exit 1)
+
   local IMG_PATH=$1
   local RPI_ZIP_URL=$2
-  local IMG_DIR=$(dirname $1)
-  local RPI_ZIP_NAME=$(basename $2)
+
+  local IMG_DIR=$(dirname ${IMG_PATH})
+  local RPI_ZIP_NAME=$(basename ${RPI_ZIP_URL})
   local RPI_IMAGE_NAME=$(echo ${RPI_ZIP_NAME} | sed 's/zip/img/')
 
   curl -I ${RPI_ZIP_URL} 2>/dev/null | grep "content-type: application/zip" 1>/dev/null \
@@ -297,9 +310,12 @@ load() {
 }
 
 exec() {
-  # TEMPLATE: exec <MOUNT_POINT> <EXECUTE_FILE> [...]
+  # TEMPLATE: exec <MOUNT_POINT> <EXECUTING_FILE> [...]
 
   local MOUNT_POINT=${1}
+  local EXECUTING_FILE=${2}
+  local ARGS="${@:3}"
+
   add_settings ${MOUNT_POINT}
 
   local RET=0
@@ -307,12 +323,12 @@ exec() {
   mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
 
   if [[ $# > 1 ]]; then
-    local SCRIPT_NAME="$(basename ${2}).$(tr -dc 'A-F0-9' < /dev/urandom | dd bs=1 count=7 2>/dev/null)"
+    local SCRIPT_NAME="$(basename ${EXECUTING_FILE}).$(tr -dc 'A-F0-9' < /dev/urandom | dd bs=1 count=7 2>/dev/null)"
     local SCRIPT_PATH="/root/${SCRIPT_NAME}"
 
-    cp "${2}" "${MOUNT_POINT}/${SCRIPT_PATH}"
+    cp "${EXECUTING_FILE}" "${MOUNT_POINT}/${SCRIPT_PATH}"
     rich_echo "Running the script" "BLUE"
-    chroot ${MOUNT_POINT} /bin/sh -c "${SCRIPT_PATH} ${@:3}" || RET=1
+    chroot ${MOUNT_POINT} /bin/sh -c "${SCRIPT_PATH} ${ARGS}" || RET=1
     rm "${MOUNT_POINT}/${SCRIPT_PATH}"
   else
     # https://wiki.archlinux.org/index.php/Change_root_(%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9)
@@ -393,7 +409,6 @@ size() {
   echo "IMG_MIN_SIZE: ${IMG_MIN_SIZE}"
   local CUR_IMG_SIZE=$((${LINUX_PART_END} + 512))
   echo "CUR_IMG_SIZE: ${CUR_IMG_SIZE}"
-
 
   if [[ ${FILE_TYPE} == "file" ]]; then
     local OBJ_IMG_SIZE=`du -sb ${IMG_PATH} | awk -F' ' '{ print $1 }'`
@@ -527,14 +542,14 @@ get_version() {
 
 help() {
   echo "=========================================="
-  rich_echo "img-tool (version 0.6)" "BLUE"
+  rich_echo "img-tool (version 0.6.1)" "BLUE"
   echo "=========================================="
   echo "img-tool <IMAGE> exec [ <SCRIPT> [...] ]"
   # TODO: Add ability executing commands from stdin
   echo "img-tool <IMAGE> copy <MOVE_FILE> <MOVE_TO>"
   echo "img-tool <IMAGE> size [ <NEW_SIZE> ]"
   echo "To minimize image:"
-  echo "img-tool <IMAGE> size \$(img-tool <IMAGE> size | head -1 | cut -b 15-)"
+  echo "img-tool <IMAGE> size \$(img-tool <IMAGE> size | grep \"IMG_MIN_SIZE\" | cut -b 15-)"
   echo "img-tool <IMAGE> load <RPI_ZIP_URL>"
   echo "=========================================="
   rich_echo "Additional functions:" "BLUE"

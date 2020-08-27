@@ -1,6 +1,6 @@
 # img-tool
 
-Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Linux, macOS & etc.
+The tool-bundle to execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Linux, macOS & etc.
 
 1. Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc.
 
@@ -8,12 +8,12 @@ Utilities for execute commands (amd64 &amp; armhf) &amp; resize the Raspbian ima
 
 3. You can use it manualy or by scripts (example of using at [`img-builder`](https://github.com/urpylka/img-builder) project). Also this project is using in [COEX CLOVER](https://github.com/copterexpress/clover).
 
-## API v0.6
+## API v0.6.1
 
 For easy using the docker image you need to make alias:
 
 ```bash
-alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.6 img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.6.1 img-tool'
 ```
 
 * You can add this command to `~/.bash_profile` or `~/.bashrc` to make it permanent.
@@ -47,7 +47,7 @@ The docker image consists **img-tool** script. It can be used for:
     For automatic minimize the image use:
 
     ```bash
-    img-tool <IMG_PATH> size $(img-tool <IMG_PATH> size | head -1 | cut -b 15-)
+    img-tool <IMG_PATH> size $(img-tool <IMG_PATH> size | grep "IMG_MIN_SIZE" | cut -b 15-)
     ```
 
 4. The script also consists additional functions who is needed for builds: `get_repo_ver`, `get_repo_url`, `get_repo_name`, `rich_echo`, `travis_retry`.
@@ -63,10 +63,10 @@ The docker image consists **img-tool** script. It can be used for:
 ## Build own version
 
 ```bash
-docker build -t img-tool:local .
+docker build -t urpylka/img-tool:local .
 
 # Alias for ease using
-alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt img-tool:local img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:local img-tool'
 ```
 
 ### Requirements in the Docker image
