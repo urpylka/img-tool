@@ -33,8 +33,7 @@ RUN apt-get update \
     && apt-get clean
 
 COPY ./qemu-arm-static /usr/share/qemu-arm-static
-
-COPY ./src /tmp/src
+COPY ./qemu-wrapper.c /tmp/src/qemu-wrapper.c
 RUN gcc -static /tmp/src/qemu-wrapper.c -O3 -s -o /usr/share/qemu-wrapper && rm -rf /tmp/src
 
 COPY ./img-tool /usr/sbin/
