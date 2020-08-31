@@ -237,13 +237,16 @@ fix_partuuid() {
 add_settings() {
   # TEMPLATE: add_settings <MOUNT_POINT>
 
-  local REGISTER=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
+  local REGISTER_ARMV7=':arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-wrapper:'
+  local REGISTER_AARCH64=':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:'
   if [[ $(arch) != 'armv7l' ]]; then
     rich_echo "Enable qemu-arm-static"
     mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2> /dev/null || true
-    echo ${REGISTER} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
+    echo ${REGISTER_ARMV7} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
+    echo ${REGISTER_AARCH64} > /proc/sys/fs/binfmt_misc/register 2> /dev/null || true
     cp '/usr/share/qemu-wrapper' "${MOUNT_POINT}/usr/bin/qemu-wrapper"
     cp '/usr/share/qemu-arm-static' "${MOUNT_POINT}/usr/bin/qemu-arm-static"
+    cp '/usr/share/qemu-aarch64-static' "${MOUNT_POINT}/usr/bin/qemu-aarch64-static"
   else rich_echo "qemu-arm-static is not need"
   fi
 

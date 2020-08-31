@@ -33,6 +33,7 @@ RUN apt-get update \
     && apt-get clean
 
 COPY ./qemu-arm-static /usr/share/qemu-arm-static
+COPY ./qemu-aarch64-static /usr/share/qemu-aarch64-static
 COPY ./qemu-wrapper.c /tmp/src/qemu-wrapper.c
 RUN gcc -static /tmp/src/qemu-wrapper.c -O3 -s -o /usr/share/qemu-wrapper && rm -rf /tmp/src
 
