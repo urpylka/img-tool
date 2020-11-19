@@ -140,6 +140,9 @@ get_block_device() {
       losetup ${DEV_IMAGE} ${IMG_PATH} || (rich_echo "losetup error" "RED"; exit 1;)
       sleep 0.5;;
 
+    Zip\ archive\ data*)
+      rich_echo "Unzip your image file before use" "RED"; exit 1;;
+
     *)
       rich_echo "IMG_PATH incorrect" "RED"; exit 1;;
   esac
