@@ -8,12 +8,12 @@ The tool-bundle to execute commands (amd64, armhf &amp; arm64) &amp; resize the 
 
 3. You can use it manualy or by scripts (example of using at [`img-builder`](https://github.com/urpylka/img-builder) project). Also this project is using in [COEX CLOVER](https://github.com/copterexpress/clover).
 
-## API v0.7
+## API v0.7.1
 
 For easy using the docker image you need to make alias:
 
 ```bash
-alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.7 img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.7.1 img-tool'
 ```
 
 * You can add this command to `~/.bash_profile` or `~/.bashrc` to make it permanent.
