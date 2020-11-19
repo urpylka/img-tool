@@ -211,7 +211,8 @@ mount_image() {
   fi
 
   rich_echo "Unmount chroot rootfs and boot partition: ${MOUNT_POINT}" "BLUE"
-  travis_retry umount -fl ${MOUNT_POINT}
+  travis_retry umount -fl ${MOUNT_POINT} || (echo "${MOUNT_POINT} is still used by the following processes: "; lsof +D ${MOUNT_POINT}; sleep 2)
+
   rmdir ${MOUNT_POINT}
 
   loout
