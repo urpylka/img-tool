@@ -551,7 +551,7 @@ get_version() {
 
 help() {
   echo "=========================================="
-  rich_echo "img-tool (version 0.6.1)" "BLUE"
+  rich_echo "img-tool (version 0.7)" "BLUE"
   echo "=========================================="
   echo "img-tool <IMAGE> exec [ <SCRIPT> [...] ]"
   # TODO: Add ability executing commands from stdin

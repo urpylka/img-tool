@@ -1,6 +1,6 @@
 # img-tool
 
-The tool-bundle to execute commands (amd64 &amp; armhf) &amp; resize the Raspbian images. Due to docker scripts it can work on Linux, macOS & etc.
+The tool-bundle to execute commands (amd64, armhf &amp; arm64) &amp; resize the Raspberry Pi images. Due to docker scripts it can work on Linux, macOS & etc.
 
 1. Now it only works with **Raspbian OS images** (due to filesystem partition scheme). Plans to make a more universal version (w arch-configs) for **Orange Pi**, **Nano Pi** and etc.
 
@@ -8,12 +8,12 @@ The tool-bundle to execute commands (amd64 &amp; armhf) &amp; resize the Raspbia
 
 3. You can use it manualy or by scripts (example of using at [`img-builder`](https://github.com/urpylka/img-builder) project). Also this project is using in [COEX CLOVER](https://github.com/copterexpress/clover).
 
-## API v0.6.1
+## API v0.7
 
 For easy using the docker image you need to make alias:
 
 ```bash
-alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.6.1 img-tool'
+alias img-tool='docker run --privileged -it --rm -v $(pwd):/mnt urpylka/img-tool:0.7 img-tool'
 ```
 
 * You can add this command to `~/.bash_profile` or `~/.bashrc` to make it permanent.
