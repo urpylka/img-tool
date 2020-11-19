@@ -24,8 +24,7 @@
 
 get_repo_ver() {
   # TEMPLATE: get_repo_ver <REPO_PATH>
-  # If TRAVIS_TAG is not set it will take the tag from git
-  echo ${TRAVIS_TAG:=$(cd ${1} && git log --format=%h -1)}
+  echo $(cd ${1} && git log --format=%h -1)
 }
 
 get_repo_url() {
