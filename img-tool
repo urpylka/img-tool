@@ -323,6 +323,7 @@ exec() {
 
   local RET=0
   set +e
+  [[ -f ${MOUNT_POINT}/etc/ld.so.preload ]] &&
   mv ${MOUNT_POINT}/etc/ld.so.preload ${MOUNT_POINT}/etc/ld.so.preload.temp-moved
 
   if [[ $# > 1 ]]; then
@@ -344,6 +345,7 @@ exec() {
     && chroot ${MOUNT_POINT} /bin/bash
   fi
 
+  [[ -f ${MOUNT_POINT}/etc/ld.so.preload.temp-moved ]] &&
   mv ${MOUNT_POINT}/etc/ld.so.preload.temp-moved ${MOUNT_POINT}/etc/ld.so.preload
   set -e
   return ${RET}
