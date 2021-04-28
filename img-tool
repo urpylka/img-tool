@@ -309,10 +309,7 @@ load() {
   rich_echo "Unzipping Linux distribution image" "BLUE" \
   && unzip -p ${IMG_DIR}/${RPI_ZIP_NAME} ${RPI_IMAGE_NAME} > ${IMG_PATH} \
   && rich_echo "Unzipping completed" "GREEN" \
-  || (
-    rich_echo "Unzipping failed!" "RED";
-    rm ${IMG_DIR}/${RPI_ZIP_NAME} && rich_echo "Zip-file was removed" "RED";
-    exit 1)
+  || (rich_echo "Unzipping failed! Check your base image" "RED"; exit 1)
 }
 
 exec() {
