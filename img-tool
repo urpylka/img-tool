@@ -98,20 +98,27 @@ get_info() {
   local PARTS=$(echo -e "${FDISK}" | awk 'FNR>8')
   PARTS_COUNT=$(echo -e "${PARTS}" | wc -l)
 
-  if [[ "${PARTS_COUNT}" != 1 && "${PARTS_COUNT}" != 2 ]] ; then
-    rich_echo "Image is incorrect" "RED"; loout; exit 1;
-  fi
+  case "${PARTS_COUNT}" in
+    1)
+      local PART1=$(echo -e "${PARTS}" | awk 'FNR==1');
 
-  local PART1=$(echo -e "${PARTS}" | awk 'FNR==1')
-  local PART2=$(echo -e "${PARTS}" | awk 'FNR==2')
+      PART1_TYPE=$(echo ${PART1} | awk -F' ' '{print $7}');
+      PART1_START=$(echo ${PART1} | awk -F' ' '{print $2}');
+      PART1_SIZE=$(echo ${PART1} | awk -F' ' '{print $4}');
+    2)
+      local PART1=$(echo -e "${PARTS}" | awk 'FNR==1');
+      local PART2=$(echo -e "${PARTS}" | awk 'FNR==2');
 
-  PART1_TYPE=$(echo ${PART1} | awk -F' ' '{print $7}')
-  PART1_START=$(echo ${PART1} | awk -F' ' '{print $2}')
-  PART1_SIZE=$(echo ${PART1} | awk -F' ' '{print $4}')
+      PART1_TYPE=$(echo ${PART1} | awk -F' ' '{print $7}');
+      PART1_START=$(echo ${PART1} | awk -F' ' '{print $2}');
+      PART1_SIZE=$(echo ${PART1} | awk -F' ' '{print $4}');
 
-  PART2_TYPE=$(echo ${PART2} | awk -F' ' '{print $7}')
-  PART2_START=$(echo ${PART2} | awk -F' ' '{print $2}')
-  PART2_SIZE=$(echo ${PART2} | awk -F' ' '{print $4}')
+      PART2_TYPE=$(echo ${PART2} | awk -F' ' '{print $7}');
+      PART2_START=$(echo ${PART2} | awk -F' ' '{print $2}');
+      PART2_SIZE=$(echo ${PART2} | awk -F' ' '{print $4}');;
+    *)
+      rich_echo "Image is incorrect" "RED"; loout; exit 1;;
+  esac
 }
 
 get_block_device() {
