@@ -314,8 +314,19 @@ load() {
   local RPI_ZIP_NAME=$(basename ${RPI_ZIP_URL})
   local RPI_IMAGE_NAME=$(echo ${RPI_ZIP_NAME} | sed 's/zip/img/')
 
-  curl -I ${RPI_ZIP_URL} 2>/dev/null | grep "content-type: application/zip" 1>/dev/null \
+  RPI_ZIP_URL=https://armbian.systemonachip.net/dl/nanopim4v2/archive/Armbian_21.02.3_Nanopim4v2_buster_current_5.10.21.img.xz
+  local FILE_HEADER=$(curl -I ${RPI_ZIP_URL} 2>/dev/null)
+
+  if [[ $(echo ${FILE_HEADER} | grep "200 OK") ]]; then
+    FILE_HEADER=$(curl -I ${FILE_HEADER} 2>/dev/null | grep "content-type: " | awk -F "content-type: ")
+    echo ${FILE_HEADER}
+  else
+    rich_echo "RPI_ZIP_URL is broken." "RED"; exit 1)
+  fi
+
+
   || (rich_echo "RPI_ZIP_URL is broken or it is not a zip file." "RED"; exit 1)
+
 
   if [ ! -e "${IMG_DIR}/${RPI_ZIP_NAME}" ]; then
     rich_echo "Downloading original Linux distribution. It may take a while." "BLUE" 1 \
