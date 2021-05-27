@@ -182,7 +182,18 @@ mount_image() {
 
   case ${PARTS_COUNT} in
     1)
-      rich_echo "One partition temporary doesn't support" "RED"; loout; exit 1
+      if [[ ${PART1_TYPE} == "Linux" ]]; then
+
+        PART1_START=$((${PART1_START}*512))
+        PART1_SIZE=$((${PART1_SIZE}*512))
+
+        # https://linux.die.net/man/8/mount
+        mount -t ext4 -o offset=${PART2_START},sizelimit=${PART2_SIZE} ${DEV_IMAGE} ${MOUNT_POINT}
+
+        local IMG_TYPE="Armbian"
+      else
+        rich_echo "Incorrect scheme of partitions" "RED"; loout; exit 1
+      fi
       ;;
     2)
       if [[ ${PART1_TYPE} == "W95" && ${PART2_TYPE} == "Linux" ]]; then
